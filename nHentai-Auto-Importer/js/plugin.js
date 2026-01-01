@@ -303,41 +303,68 @@ function addToImportsIndex(folderName, eagleItemId, eagleFilePath, metadata = {}
  */
 function moveFolder(source, destination) {
     try {
-        // 確保來源存在
-        if (!fs.existsSync(source)) {
-            log(`來源資料夾不存在: ${source}`, 'error');
+        // 正規化路徑
+        const normalizedSource = path.normalize(source);
+        const normalizedDest = path.normalize(destination);
+        
+        // 確保來源存在 (增加重試機制處理 NAS 延遲)
+        let sourceExists = fs.existsSync(normalizedSource);
+        if (!sourceExists) {
+            // 等待一下再試 (NAS 可能有延遲)
+            log(`來源資料夾檢查失敗，等待 500ms 後重試...`, 'warn');
+            const start = Date.now();
+            while (Date.now() - start < 500) {
+                // 等待
+            }
+            sourceExists = fs.existsSync(normalizedSource);
+        }
+        
+        if (!sourceExists) {
+            log(`來源資料夾不存在: ${normalizedSource}`, 'error');
+            // 嘗試列出父目錄內容進行診斷
+            try {
+                const parentDir = path.dirname(normalizedSource);
+                const folderName = path.basename(normalizedSource);
+                const siblings = fs.readdirSync(parentDir);
+                const similar = siblings.filter(s => s.includes(folderName.substring(0, 10)));
+                if (similar.length > 0) {
+                    log(`父目錄中類似的資料夾: ${similar.join(', ')}`, 'info');
+                }
+            } catch (diagErr) {
+                log(`診斷失敗: ${diagErr.message}`, 'warn');
+            }
             return false;
         }
         
         // 確保目標目錄的父層存在
-        ensureDir(path.dirname(destination));
+        ensureDir(path.dirname(normalizedDest));
         
         // 如果目標已存在，先刪除
-        if (fs.existsSync(destination)) {
-            fs.rmSync(destination, { recursive: true, force: true });
+        if (fs.existsSync(normalizedDest)) {
+            fs.rmSync(normalizedDest, { recursive: true, force: true });
             log(`覆蓋已存在的目標資料夾`, 'warn');
         }
         
         // 使用 rename 移動 (同一磁碟機更快)
         try {
-            fs.renameSync(source, destination);
+            fs.renameSync(normalizedSource, normalizedDest);
             return true; // 成功就直接返回
         } catch (renameErr) {
             // rename 失敗時，先確認來源是否還存在
-            if (!fs.existsSync(source)) {
+            if (!fs.existsSync(normalizedSource)) {
                 // 來源不存在但目標存在，表示移動其實成功了
-                if (fs.existsSync(destination)) {
+                if (fs.existsSync(normalizedDest)) {
                     log(`移動成功 (rename 報錯但實際成功)`, 'info');
                     return true;
                 }
-                log(`來源資料夾已消失: ${source}`, 'error');
+                log(`來源資料夾已消失: ${normalizedSource}`, 'error');
                 return false;
             }
             
             // 如果 rename 失敗 (跨磁碟機)，使用複製後刪除
             log(`使用複製模式移動 (rename 失敗: ${renameErr.message})`, 'info');
-            copyFolderRecursive(source, destination);
-            fs.rmSync(source, { recursive: true, force: true });
+            copyFolderRecursive(normalizedSource, normalizedDest);
+            fs.rmSync(normalizedSource, { recursive: true, force: true });
             return true;
         }
     } catch (err) {

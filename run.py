@@ -2597,8 +2597,8 @@ async def random_command(ctx, count: int = 1):
             if pdf_files:
                 pdf_name = pdf_files[0].name
                 pdf_url = f"{PDF_WEB_BASE_URL}/{quote(folder_name)}/{quote(pdf_name)}"
-                # 連結文字簡潔顯示，URL 隱藏在 markdown 連結中
-                msg_lines.append(f"📖 **#{gallery_id}** │ [📥 點擊閱讀 PDF](<{pdf_url}>)")
+                # Discord markdown 連結格式：[文字](URL)
+                msg_lines.append(f"📖 **#{gallery_id}** │ [📥 點擊閱讀 PDF]({pdf_url})")
             else:
                 msg_lines.append(f"📖 **#{gallery_id}**")
             msg_lines.append("━━━━━━━━━━━━━━━━━━\n")

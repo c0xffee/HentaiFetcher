@@ -419,8 +419,50 @@ def download_nhentai_cover(gallery_id: str, save_path: Path) -> bool:
     except Exception as e:
         logger.error(f"下載封面錯誤: {e}")
         return False
+
+
+def get_first_image_as_cover(folder_path: Path) -> bool:
+    """
+    使用資料夾內的第一張圖片作為封面
     
-    return result
+    Args:
+        folder_path: 資料夾路徑
+    
+    Returns:
+        是否成功
+    """
+    try:
+        # 支援的圖片格式
+        image_extensions = {'.jpg', '.jpeg', '.png', '.gif', '.webp'}
+        
+        # 找到所有圖片（排除已有的 cover 開頭檔案）
+        images = []
+        for file in folder_path.iterdir():
+            if file.is_file() and file.suffix.lower() in image_extensions:
+                # 排除封面檔案
+                if not file.stem.lower().startswith('cover'):
+                    images.append(file)
+        
+        if not images:
+            logger.warning(f"資料夾內沒有可用的圖片: {folder_path}")
+            return False
+        
+        # 按檔名自然排序，取第一張
+        images.sort(key=lambda x: natural_sort_key(x.name))
+        first_image = images[0]
+        
+        # 複製為封面
+        cover_ext = first_image.suffix.lower()
+        cover_path = folder_path / f"cover{cover_ext}"
+        
+        import shutil
+        shutil.copy2(first_image, cover_path)
+        logger.info(f"已使用第一張圖片作為封面: {first_image.name} -> cover{cover_ext}")
+        return True
+        
+    except Exception as e:
+        logger.error(f"使用第一張圖片作為封面失敗: {e}")
+        return False
 
 
 def format_comment_time(timestamp: int) -> str:
@@ -2533,17 +2575,18 @@ async def random_command(ctx, count: int = 1):
 
 @bot.command(name='fixcover', aliases=['fc', 'addcover'])
 async def fixcover_command(ctx):
-    """為已有的本子補充封面（從 nhentai 下載）：!fixcover"""
+    """為已有的本子補充封面（從 nhentai 下載或使用第一張圖片）：!fixcover"""
     try:
         if not DOWNLOAD_DIR.exists():
             await ctx.send("📂 下載資料夾不存在")
             return
         
-        await ctx.send("🔍 開始掃描並從 nhentai 下載封面...")
+        await ctx.send("🔍 開始掃描並補充封面...")
         
         folders = [f for f in DOWNLOAD_DIR.iterdir() if f.is_dir()]
         fixed_count = 0
         skipped_count = 0
+        fallback_count = 0  # 使用第一張圖片作為封面的數量
         failed_count = 0
         
         for folder in folders:
@@ -2570,22 +2613,32 @@ async def fixcover_command(ctx):
                 except Exception as e:
                     logger.error(f"讀取 metadata 失敗 ({folder.name}): {e}")
             
+            cover_success = False
+            
             if gallery_id:
-                # 從 nhentai 下載封面
+                # 嘗試從 nhentai 下載封面
                 if download_nhentai_cover(gallery_id, folder):
                     fixed_count += 1
-                    logger.info(f"補充封面成功: {folder.name}")
-                else:
-                    failed_count += 1
-                    logger.warning(f"補充封面失敗: {folder.name}")
+                    cover_success = True
+                    logger.info(f"補充封面成功 (nhentai): {folder.name}")
                 # 避免請求太頻繁
                 await asyncio.sleep(0.5)
-            else:
-                failed_count += 1
-                logger.warning(f"找不到 gallery_id: {folder.name}")
+            
+            # 如果從 nhentai 下載失敗，使用第一張圖片作為封面
+            if not cover_success:
+                first_image = get_first_image_as_cover(folder)
+                if first_image:
+                    fallback_count += 1
+                    cover_success = True
+                    logger.info(f"補充封面成功 (第一張圖片): {folder.name}")
+                else:
+                    failed_count += 1
+                    logger.warning(f"補充封面失敗 (無圖片可用): {folder.name}")
         
         msg = f"✅ 完成！\n"
-        msg += f"📥 下載了 {fixed_count} 個封面\n"
+        msg += f"📥 從 nhentai 下載了 {fixed_count} 個封面\n"
+        if fallback_count > 0:
+            msg += f"🖼️ 使用第一張圖片作為封面 {fallback_count} 個\n"
         msg += f"⏭️ 跳過 {skipped_count} 個已有封面\n"
         if failed_count > 0:
             msg += f"❌ 失敗 {failed_count} 個"

@@ -1,0 +1,107 @@
+# ============================================
+# HentaiFetcher Docker Compose 配置
+# ============================================
+# 在 Synology NAS 上部署自動化漫畫下載器
+# 
+# 使用方式:
+#   1. 設定 DISCORD_TOKEN 環境變數
+#   2. 執行: docker-compose up -d
+# ============================================
+
+version: '3.8'
+
+services:
+  manga-downloader:
+    # 服務名稱
+    container_name: hentai-fetcher
+    
+    # 使用本地 Dockerfile 建構
+    build:
+      context: .
+      dockerfile: Dockerfile
+    
+    # 或者使用預建映像 (如果已推送到 registry)
+    # image: hentai-fetcher:latest
+    
+    # 環境變數設定
+    environment:
+      # Discord Bot Token (必填)
+      # 請在 .env 檔案中設定，或透過環境變數傳入
+      - DISCORD_TOKEN=${DISCORD_TOKEN}
+      
+      # 時區設定 (可選)
+      - TZ=Asia/Taipei
+      
+      # Python 相關設定
+      - PYTHONUNBUFFERED=1
+    
+    # Volume 掛載
+    volumes:
+      # 配置檔案目錄
+      # 用於存放 bot.log、gallery-dl.conf 等
+      - ./config:/app/config
+      
+      # 下載輸出目錄
+      # 這裡會存放最終的 PDF 和 metadata.json
+      - ./downloads:/app/downloads
+      
+      # 暫存目錄 (可選，建議使用 tmpfs 提升效能)
+      - ./temp:/app/temp
+    
+    # 重啟策略
+    restart: always
+    
+    # 資源限制 (可選，根據 NAS 規格調整)
+    # deploy:
+    #   resources:
+    #     limits:
+    #       cpus: '2'
+    #       memory: 2G
+    #     reservations:
+    #       cpus: '0.5'
+    #       memory: 512M
+    
+    # 日誌設定
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    
+    # 網路設定 (可選)
+    # networks:
+    #   - bot-network
+
+# 網路配置 (可選)
+# networks:
+#   bot-network:
+#     driver: bridge
+
+# ============================================
+# 部署步驟:
+# ============================================
+# 
+# 1. 建立專案目錄:
+#    mkdir -p /volume1/docker/HentaiFetcher
+#    cd /volume1/docker/HentaiFetcher
+# 
+# 2. 複製所有檔案到該目錄
+# 
+# 3. 建立子目錄:
+#    mkdir -p config downloads temp
+# 
+# 4. 設定 Token (選擇其一):
+#    方法 A - 直接編輯此檔案，替換 your_discord_token_here
+#    方法 B - 建立 .env 檔案:
+#             echo "DISCORD_TOKEN=你的Token" > .env
+# 
+# 5. 建構並啟動:
+#    docker-compose up -d --build
+# 
+# 6. 查看日誌:
+#    docker-compose logs -f
+# 
+# 7. 停止服務:
+#    docker-compose down
+# 
+# ============================================

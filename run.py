@@ -908,7 +908,7 @@ class DownloadProcessor:
     下載處理器：負責執行 gallery-dl、轉換 PDF 並生成 metadata
     """
     
-    def __init__(self, url: str, total_pages: int = 0, message_callback=None, skip_duplicate_check: bool = False):
+    def __init__(self, url: str, total_pages: int = 0, message_callback=None):
         """
         初始化下載處理器
         
@@ -916,12 +916,10 @@ class DownloadProcessor:
             url: 要下載的網址
             total_pages: 預期總頁數（用於進度計算）
             message_callback: 狀態更新回調函式
-            skip_duplicate_check: 是否跳過重複檢查（test 模式）
         """
         self.url = url
         self.total_pages = total_pages
         self.message_callback = message_callback
-        self.skip_duplicate_check = skip_duplicate_check
         self.temp_path: Optional[Path] = None
         self.output_path: Optional[Path] = None
         self.last_error: str = ""
@@ -1331,38 +1329,10 @@ class DownloadProcessor:
             # 建立輸出資料夾
             self.output_path = DOWNLOAD_DIR / safe_title
             
-            # 檢查是否已下載過（資料夾存在且有 PDF 檔案）
-            pdf_check_path = self.output_path / f"{safe_title}.pdf"
-            if self.output_path.exists() and pdf_check_path.exists() and not self.skip_duplicate_check:
-                # 已下載過，跳過（除非是 test 模式）
-                logger.info(f"已存在，跳過下載: {safe_title}")
-                
-                # 生成 PDF Web 連結
-                from urllib.parse import quote
-                pdf_web_url = f"{PDF_WEB_BASE_URL}/{quote(safe_title)}/{quote(safe_title + '.pdf')}"
-                
-                # 清理暫存檔案
-                if self.temp_path and self.temp_path.exists():
-                    try:
-                        shutil.rmtree(self.temp_path)
-                    except Exception:
-                        pass
-                
-                return True, f"⚠️ 已存在: [{safe_title}]({pdf_web_url})\n📁 {self.output_path}"
-            
-            # Test 模式：如果已存在，使用時間戳命名
-            if self.skip_duplicate_check and self.output_path.exists():
-                self.output_path = DOWNLOAD_DIR / f"{safe_title}_{int(time.time())}"
-                logger.info(f"Test 模式：使用新資料夾 {self.output_path}")
-            
-            # 如果資料夾存在但沒有 PDF（可能是上次失敗），刪除重新下載
+            # 如果資料夾已存在，使用時間戳命名避免覆蓋
             if self.output_path.exists():
-                try:
-                    shutil.rmtree(self.output_path)
-                    logger.info(f"刪除不完整的資料夾: {self.output_path}")
-                except Exception as e:
-                    logger.warning(f"無法刪除資料夾: {e}")
-                    self.output_path = DOWNLOAD_DIR / f"{safe_title}_{int(time.time())}"
+                self.output_path = DOWNLOAD_DIR / f"{safe_title}_{int(time.time())}"
+                logger.info(f"資料夾已存在，使用新資料夾 {self.output_path}")
             
             self.output_path.mkdir(parents=True, exist_ok=True)
             
@@ -1453,10 +1423,11 @@ class DownloadProcessor:
             elif output_path_str.startswith('\\') and not output_path_str.startswith('\\\\'):
                 output_path_str = '\\' + output_path_str  # 補上缺少的斜線
             
-            # 生成 PDF Web 連結
+            # 生成 PDF Web 連結 - 使用實際資料夾名稱（可能有時間戳後綴）
             from urllib.parse import quote
+            folder_name = self.output_path.name  # 使用實際資料夾名稱
             pdf_filename = f"{safe_title}.pdf"
-            pdf_web_url = f"{PDF_WEB_BASE_URL}/{quote(safe_title)}/{quote(pdf_filename)}"
+            pdf_web_url = f"{PDF_WEB_BASE_URL}/{quote(folder_name)}/{quote(pdf_filename)}"
             
             # 標題嵌入連結，讓使用者可以直接點擊觀看 PDF
             return True, f"✅ 完成: [{safe_title}]({pdf_web_url})\n📄 {page_count}頁 ⏱️ {elapsed_str}\n📁 {output_path_str}"
@@ -1533,8 +1504,8 @@ class DownloadWorker(threading.Thread):
                         )
                         start_msg_id = future.result(timeout=10)
                 
-                # 創建下載處理器（傳入總頁數和 test 模式）
-                processor = DownloadProcessor(url, total_pages=pages, skip_duplicate_check=test_mode)
+                # 創建下載處理器
+                processor = DownloadProcessor(url, total_pages=pages)
                 
                 # 啟動進度監控執行緒
                 progress_stop_event = threading.Event()

@@ -223,17 +223,35 @@ async function processComicFolder(folderPath, folderName) {
         const pdfPath = path.join(folderPath, pdfFile);
         
         try {
-            // 使用 Eagle API 匯入檔案
+            // 準備匯入選項
+            const importOptions = {};
+            if (metadata) {
+                if (metadata.name) importOptions.name = metadata.name;
+                if (metadata.url) importOptions.website = metadata.url;
+                if (metadata.tags && Array.isArray(metadata.tags)) importOptions.tags = metadata.tags;
+                if (metadata.annotation) importOptions.annotation = metadata.annotation;
+            }
+            
+            // 使用 Eagle API 匯入檔案 (帶 metadata)
             log(`匯入 PDF: ${pdfFile}`, 'info');
             
-            const importResult = await eagle.item.addFromPath(pdfPath);
+            const itemId = await eagle.item.addFromPath(pdfPath, importOptions);
             
-            if (importResult && importResult.id) {
-                log(`匯入成功, ID: ${importResult.id}`, 'success');
+            if (itemId) {
+                log(`匯入成功, ID: ${itemId}`, 'success');
                 
-                // 4. 如果有 metadata，更新 Eagle 項目資訊
-                if (metadata) {
-                    await updateEagleItem(importResult.id, metadata, folderPath);
+                // 設定自定義封面 (如果有 cover.jpg)
+                const coverPath = path.join(folderPath, 'cover.jpg');
+                if (fs.existsSync(coverPath)) {
+                    try {
+                        const item = await eagle.item.getById(itemId);
+                        if (item) {
+                            await item.setCustomThumbnail(coverPath);
+                            log(`已設定封面: ${metadata?.name || folderName}`, 'success');
+                        }
+                    } catch (coverErr) {
+                        log(`設定封面失敗: ${coverErr.message}`, 'warn');
+                    }
                 }
                 
                 importedCount++;
@@ -254,51 +272,6 @@ async function processComicFolder(folderPath, folderName) {
     } else {
         log(`歸檔失敗: ${folderName}`, 'error');
         return false;
-    }
-}
-
-/**
- * 更新 Eagle 項目的 metadata
- */
-async function updateEagleItem(itemId, metadata, folderPath) {
-    try {
-        const updateData = {};
-        
-        // 名稱
-        if (metadata.name) {
-            updateData.name = metadata.name;
-        }
-        
-        // 網址
-        if (metadata.url) {
-            updateData.url = metadata.url;
-        }
-        
-        // 標籤 (Eagle 需要 tags 為陣列格式)
-        if (metadata.tags && Array.isArray(metadata.tags)) {
-            updateData.tags = metadata.tags;
-        }
-        
-        // 註釋
-        if (metadata.annotation) {
-            updateData.annotation = metadata.annotation;
-        }
-        
-        // 檢查是否有封面圖
-        const coverPath = path.join(folderPath, 'cover.jpg');
-        if (fs.existsSync(coverPath)) {
-            // Eagle 會自動從 PDF 生成縮圖，但我們可以設定自定義縮圖
-            // 這需要額外處理，暫時跳過
-        }
-        
-        // 呼叫 Eagle API 更新
-        if (Object.keys(updateData).length > 0) {
-            await eagle.item.modify(itemId, updateData);
-            log(`已更新 metadata: ${metadata.name || itemId}`, 'success');
-        }
-        
-    } catch (err) {
-        log(`更新 metadata 失敗: ${err.message}`, 'error');
     }
 }
 

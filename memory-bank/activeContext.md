@@ -4,6 +4,12 @@
 - 正在執行的任務：開發 Eagle NAS Auto-Importer 插件
 
 ## Recent Changes (最近更動)
+- [x] 2026-01-02 修復 Eagle API 路徑錯誤 (File URL path must be absolute)
+  - 新增 `validateAbsolutePath()` 函數驗證路徑格式
+  - 新增 `normalizePathForEagle()` 函數正規化路徑
+  - 在 `scanNasFolder` 和 `processComicFolder` 加入路徑驗證
+  - 加入更詳細的錯誤提示 (告知使用者需掛載 NAS)
+  - 更新 index.html 加入設定提示區塊
 - [x] 2026-01-02 建立 Eagle NAS Auto-Importer 插件
   - 建立 `Eagle-Auto-Importer/` 插件目錄
   - 實作背景服務掃描 NAS 資料夾功能

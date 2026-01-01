@@ -2,21 +2,24 @@
  * nHentai Auto-Importer
  * 自動掃描 NAS 資料夾，匯入 PDF 並填寫 metadata
  * 
- * @version 1.0.0
+ * @version 1.0.1
  * @author HentaiFetcher
+ * 
+ * 注意：Eagle API addFromPath 需要普通的檔案路徑字串，不需要 file:// URL
  */
 
 const fs = require('fs');
 const path = require('path');
-const { pathToFileURL } = require('url');
 
 // ==================== 設定區 ====================
 const CONFIG = {
-    // 監控來源 - NAS 下載資料夾 (使用 UNC 路徑)
-    NAS_WATCH_PATH: '\\\\192.168.10.2\\docker\\HentaiFetcher\\downloads',
+    // 監控來源 - NAS 下載資料夾
+    // ⚠️ 重要：必須使用映射磁碟機路徑 (如 Z:\)，UNC 路徑 (\\IP\...) 會導致 Eagle API 錯誤
+    // 設定方式: 在 Windows 執行 net use Z: \\192.168.10.2\docker
+    NAS_WATCH_PATH: 'Z:\\HentaiFetcher\\downloads',
     
     // 歸檔目的地 - 匯入後移動到此資料夾
-    IMPORTED_PATH: '\\\\192.168.10.2\\docker\\HentaiFetcher\\imported',
+    IMPORTED_PATH: 'Z:\\HentaiFetcher\\imported',
     
     // 掃描間隔 (毫秒) - 預設 30 秒
     SCAN_INTERVAL: 30000,
@@ -31,19 +34,47 @@ const CONFIG = {
     DEBUG: true
 };
 
-// ==================== 工具函數 ====================
+/**
+ * 驗證路徑是否為有效的絕對路徑 (非 UNC)
+ * Eagle API 不支援 UNC 路徑 (\\IP\share)，必須使用映射磁碟機 (Z:\)
+ */
+function validateAbsolutePath(filePath) {
+    // 檢查是否為 UNC 路徑
+    if (filePath.startsWith('\\\\')) {
+        return {
+            valid: false,
+            error: 'UNC 路徑不被 Eagle API 支援，請使用映射磁碟機 (如 Z:\\)'
+        };
+    }
+    
+    // 檢查是否為標準 Windows 絕對路徑 (C:\, D:\, Z:\ 等)
+    const driveLetterPattern = /^[A-Za-z]:\\/;
+    if (!driveLetterPattern.test(filePath)) {
+        return {
+            valid: false,
+            error: `無效的絕對路徑格式: ${filePath}`
+        };
+    }
+    
+    return { valid: true };
+}
 
 /**
- * 將 Windows 路徑轉換為 file:// URL (支援 UNC 路徑)
+ * 將路徑正規化為 Eagle API 可接受的格式
  */
-function toFileURL(filePath) {
-    // UNC 路徑需要特殊處理: \\server\share -> file://server/share
-    if (filePath.startsWith('\\\\')) {
-        const uncPath = filePath.replace(/\\/g, '/');
-        return 'file:' + uncPath;
+function normalizePathForEagle(filePath) {
+    // 使用 path.normalize 處理路徑
+    let normalized = path.normalize(filePath);
+    
+    // 確保使用反斜線 (Windows 標準)
+    normalized = normalized.replace(/\//g, '\\');
+    
+    // 移除結尾的反斜線 (如果有)
+    if (normalized.endsWith('\\') && !normalized.match(/^[A-Za-z]:\\$/)) {
+        normalized = normalized.slice(0, -1);
     }
-    // 一般路徑使用 pathToFileURL
-    return pathToFileURL(filePath).href;
+    
+    return normalized;
 }
 
 // ==================== 狀態變數 ====================
@@ -215,6 +246,13 @@ function getPdfFiles(folderPath) {
 async function processComicFolder(folderPath, folderName) {
     log(`處理中: ${folderName}`, 'info');
     
+    // 0. 驗證路徑格式
+    const pathValidation = validateAbsolutePath(folderPath);
+    if (!pathValidation.valid) {
+        log(`路徑錯誤: ${pathValidation.error}`, 'error');
+        return false;
+    }
+    
     // 1. 檢查是否有 PDF 檔案
     const pdfFiles = getPdfFiles(folderPath);
     if (pdfFiles.length === 0) {
@@ -235,8 +273,18 @@ async function processComicFolder(folderPath, folderName) {
     }
     
     // 3. 匯入每個 PDF 檔案
+    let successfulImports = 0;
+    
     for (const pdfFile of pdfFiles) {
-        const pdfPath = path.join(folderPath, pdfFile);
+        // 正規化路徑
+        const pdfPath = normalizePathForEagle(path.join(folderPath, pdfFile));
+        
+        // 再次驗證 PDF 路徑
+        const pdfPathValidation = validateAbsolutePath(pdfPath);
+        if (!pdfPathValidation.valid) {
+            log(`PDF 路徑錯誤: ${pdfPathValidation.error}`, 'error');
+            continue;
+        }
         
         try {
             // 準備匯入選項
@@ -248,25 +296,28 @@ async function processComicFolder(folderPath, folderName) {
                 if (metadata.annotation) importOptions.annotation = metadata.annotation;
             }
             
-            // 將路徑轉換為 file:// URL 格式
-            const pdfFileURL = toFileURL(pdfPath);
+            // addFromPath 需要普通路徑字串，不是 file:// URL
             log(`匯入 PDF: ${pdfFile}`, 'info');
-            log(`File URL: ${pdfFileURL}`, 'info');
+            if (CONFIG.DEBUG) {
+                log(`完整路徑: ${pdfPath}`, 'info');
+                log(`選項: ${JSON.stringify(importOptions)}`, 'info');
+            }
             
             // 使用 Eagle API 匯入檔案 (帶 metadata)
-            const itemId = await eagle.item.addFromPath(pdfFileURL, importOptions);
+            const itemId = await eagle.item.addFromPath(pdfPath, importOptions);
             
             if (itemId) {
                 log(`匯入成功, ID: ${itemId}`, 'success');
+                successfulImports++;
                 
                 // 設定自定義封面 (如果有 cover.jpg)
-                const coverPath = path.join(folderPath, 'cover.jpg');
+                const coverPath = normalizePathForEagle(path.join(folderPath, 'cover.jpg'));
                 if (fs.existsSync(coverPath)) {
                     try {
-                        const coverFileURL = toFileURL(coverPath);
+                        // setCustomThumbnail 也需要普通路徑字串
                         const item = await eagle.item.getById(itemId);
                         if (item) {
-                            await item.setCustomThumbnail(coverFileURL);
+                            await item.setCustomThumbnail(coverPath);
                             log(`已設定封面: ${metadata?.name || folderName}`, 'success');
                         }
                     } catch (coverErr) {
@@ -277,11 +328,22 @@ async function processComicFolder(folderPath, folderName) {
                 importedCount++;
                 updateStatsUI();
             } else {
-                log(`匯入失敗: ${pdfFile}`, 'error');
+                log(`匯入失敗 (無 itemId): ${pdfFile}`, 'error');
             }
         } catch (err) {
             log(`匯入錯誤: ${pdfFile} - ${err.message}`, 'error');
+            if (err.message.includes('absolute')) {
+                log('💡 提示: 請確認已將 NAS 掛載為磁碟機 (如 Z:)', 'warn');
+                log('   執行: net use Z: \\\\192.168.10.2\\docker', 'warn');
+            }
+            console.error('完整錯誤:', err);
         }
+    }
+    
+    // 4. 只有在至少一個 PDF 匯入成功時才歸檔
+    if (successfulImports === 0) {
+        log(`跳過歸檔 (無成功匯入): ${folderName}`, 'warn');
+        return false;
     }
     
     // 5. 歸檔 - 移動整個資料夾
@@ -308,9 +370,20 @@ async function scanNasFolder() {
     log('開始掃描 NAS 資料夾...', 'info');
     
     try {
+        // 驗證監控路徑格式
+        const watchPathValidation = validateAbsolutePath(CONFIG.NAS_WATCH_PATH);
+        if (!watchPathValidation.valid) {
+            log(`⚠️ 監控路徑格式錯誤: ${watchPathValidation.error}`, 'error');
+            log('請修改 CONFIG.NAS_WATCH_PATH 為映射磁碟機路徑 (如 Z:\\HentaiFetcher\\downloads)', 'warn');
+            log('設定映射: net use Z: \\\\192.168.10.2\\docker', 'warn');
+            isScanning = false;
+            return;
+        }
+        
         // 確保監控路徑存在
         if (!fs.existsSync(CONFIG.NAS_WATCH_PATH)) {
             log(`監控路徑不存在: ${CONFIG.NAS_WATCH_PATH}`, 'error');
+            log('請確認磁碟機已正確掛載', 'warn');
             isScanning = false;
             return;
         }

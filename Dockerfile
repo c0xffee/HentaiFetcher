@@ -46,6 +46,7 @@ RUN mkdir -p /app/config /app/downloads /app/temp
 
 # 複製應用程式碼
 COPY run.py /app/run.py
+COPY eagle_library.py /app/eagle_library.py
 
 # 設定權限
 RUN chmod +x /app/run.py

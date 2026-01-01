@@ -328,21 +328,6 @@ async function processComicFolder(folderPath, folderName) {
                 log(`匯入成功, ID: ${itemId}`, 'success');
                 successfulImports++;
                 
-                // 設定自定義封面 (如果有 cover.jpg)
-                const coverPath = normalizePathForEagle(path.join(folderPath, 'cover.jpg'));
-                if (fs.existsSync(coverPath)) {
-                    try {
-                        // setCustomThumbnail 也需要普通路徑字串
-                        const item = await eagle.item.getById(itemId);
-                        if (item) {
-                            await item.setCustomThumbnail(coverPath);
-                            log(`已設定封面: ${metadata?.name || folderName}`, 'success');
-                        }
-                    } catch (coverErr) {
-                        log(`設定封面失敗: ${coverErr.message}`, 'warn');
-                    }
-                }
-                
                 importedCount++;
                 updateStatsUI();
             } else {

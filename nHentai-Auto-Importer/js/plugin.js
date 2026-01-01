@@ -8,6 +8,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const { pathToFileURL } = require('url');
 
 // ==================== 設定區 ====================
 const CONFIG = {
@@ -29,6 +30,21 @@ const CONFIG = {
     // 是否啟用詳細日誌
     DEBUG: true
 };
+
+// ==================== 工具函數 ====================
+
+/**
+ * 將 Windows 路徑轉換為 file:// URL (支援 UNC 路徑)
+ */
+function toFileURL(filePath) {
+    // UNC 路徑需要特殊處理: \\server\share -> file://server/share
+    if (filePath.startsWith('\\\\')) {
+        const uncPath = filePath.replace(/\\/g, '/');
+        return 'file:' + uncPath;
+    }
+    // 一般路徑使用 pathToFileURL
+    return pathToFileURL(filePath).href;
+}
 
 // ==================== 狀態變數 ====================
 let isScanning = false;
@@ -232,10 +248,13 @@ async function processComicFolder(folderPath, folderName) {
                 if (metadata.annotation) importOptions.annotation = metadata.annotation;
             }
             
-            // 使用 Eagle API 匯入檔案 (帶 metadata)
+            // 將路徑轉換為 file:// URL 格式
+            const pdfFileURL = toFileURL(pdfPath);
             log(`匯入 PDF: ${pdfFile}`, 'info');
+            log(`File URL: ${pdfFileURL}`, 'info');
             
-            const itemId = await eagle.item.addFromPath(pdfPath, importOptions);
+            // 使用 Eagle API 匯入檔案 (帶 metadata)
+            const itemId = await eagle.item.addFromPath(pdfFileURL, importOptions);
             
             if (itemId) {
                 log(`匯入成功, ID: ${itemId}`, 'success');
@@ -244,9 +263,10 @@ async function processComicFolder(folderPath, folderName) {
                 const coverPath = path.join(folderPath, 'cover.jpg');
                 if (fs.existsSync(coverPath)) {
                     try {
+                        const coverFileURL = toFileURL(coverPath);
                         const item = await eagle.item.getById(itemId);
                         if (item) {
-                            await item.setCustomThumbnail(coverPath);
+                            await item.setCustomThumbnail(coverFileURL);
                             log(`已設定封面: ${metadata?.name || folderName}`, 'success');
                         }
                     } catch (coverErr) {

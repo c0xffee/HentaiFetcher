@@ -2500,147 +2500,66 @@ async def list_command(ctx):
 async def random_command(ctx, count: int = 1):
     """隨機顯示本子：!random [數量]"""
     try:
-        from urllib.parse import quote
-        import random
+        from eagle_library import EagleLibrary
+        import re
         
-        if not DOWNLOAD_DIR.exists():
-            await ctx.send("📂 下載資料夾不存在")
-            return
-        
-        # 獲取所有子資料夾
-        folders = [f for f in DOWNLOAD_DIR.iterdir() if f.is_dir()]
-        
-        if not folders:
-            await ctx.send("📂 目前沒有任何下載")
-            return
+        eagle = EagleLibrary()
         
         # 限制數量
         count = max(1, min(count, 5))  # 1-5 本
-        count = min(count, len(folders))  # 不超過總數
         
-        # 隨機選擇
-        selected = random.sample(folders, count)
+        # 從 Eagle Library 隨機選取
+        selected = eagle.get_random(count)
         
-        for folder in selected:
-            folder_name = folder.name
+        if not selected:
+            await ctx.send("📂 Eagle Library 中沒有任何本子")
+            return
+        
+        for item in selected:
+            title = item.get('title', '未知')
+            gallery_id = item.get('nhentai_id', '未知')
+            web_url = item.get('web_url', '')
+            tags = item.get('tags', [])
+            eagle_folder = item.get('folder_path', '')
             
-            # 讀取 metadata
-            metadata_path = folder / "metadata.json"
-            metadata = {}
-            if metadata_path.exists():
-                try:
-                    with open(metadata_path, 'r', encoding='utf-8') as f:
-                        metadata = json.load(f)
-                except:
-                    pass
-            
-            # 獲取基本資料
-            gallery_id = metadata.get('gallery_id', '')
-            # 如果沒有 gallery_id，從 URL 提取
-            if not gallery_id:
-                url = metadata.get('url', '')
-                match = re.search(r'/g/(\d+)', url)
-                if match:
-                    gallery_id = match.group(1)
-            if not gallery_id:
-                gallery_id = '未知'
-            
-            # 從 metadata 獲取標題
-            title = metadata.get('name', metadata.get('title', folder_name))
-            
-            # 從 annotation 解析信息
-            annotation = metadata.get('annotation', '')
-            title_japanese = ''
-            pages = '未知'
-            
-            # 解析 annotation
-            if annotation:
-                # 提取英文標題
-                title_match = re.search(r'📖 英文標題: (.+?)(?:\n|$)', annotation)
-                if title_match:
-                    title_japanese = title_match.group(1).strip()
-                
-                # 提取頁數
-                pages_match = re.search(r'📄 頁數: (\d+)', annotation)
-                if pages_match:
-                    pages = pages_match.group(1)
-            
-            # 從 tags 解析作者（tags 是字串列表）
-            tags = metadata.get('tags', [])
-            if not isinstance(tags, list):
-                tags = []
+            # 解析 tags
             artists = [tag.replace('artist:', '') for tag in tags if isinstance(tag, str) and tag.startswith('artist:')]
             parodies = [tag.replace('parody:', '') for tag in tags if isinstance(tag, str) and tag.startswith('parody:')]
             groups = [tag.replace('group:', '') for tag in tags if isinstance(tag, str) and tag.startswith('group:')]
             languages = [tag.replace('language:', '') for tag in tags if isinstance(tag, str) and tag.startswith('language:')]
-            
-            # 其他 tags（不包含類型前綴的）
             other_tags = [tag for tag in tags if isinstance(tag, str) and not any(tag.startswith(prefix) for prefix in ['artist:', 'parody:', 'group:', 'language:', 'type:'])]
             
-            # 查找 PDF 和封面
-            pdf_files = list(folder.glob("*.pdf"))
-            
-            # 查找封面 - 先找圖片檔案
-            cover_files = []
-            # 搜索所有可能的封面檔案
-            for pattern in ["cover.*", "000.*", "001.*", "01.*", "1.*", "2.*", "3.*"]:
-                found = list(folder.glob(pattern))
-                if found:
-                    # 過濾出圖片檔案
-                    cover_files = [f for f in found if f.suffix.lower() in ['.jpg', '.jpeg', '.png', '.webp', '.gif']]
-                    if cover_files:
-                        break
-            
-            # 如果沒有找到圖片，嘗試從所有圖片中找第一張
-            if not cover_files:
-                all_images = []
-                for ext in ['.jpg', '.jpeg', '.png', '.webp', '.gif']:
-                    all_images.extend(folder.glob(f"*{ext}"))
-                if all_images:
-                    # 按檔名排序取第一張
-                    all_images.sort(key=lambda x: x.name)
-                    cover_files = [all_images[0]]
-            
-            # 先發送封面圖片（單獨一則訊息）
-            if cover_files:
-                cover_file = cover_files[0]
+            # 嘗試發送縮圖
+            thumbnail_sent = False
+            if eagle_folder:
                 try:
-                    file = discord.File(str(cover_file), filename=cover_file.name)
-                    await ctx.send(file=file)
-                    logger.info(f"成功發送封面: {cover_file.name}")
+                    from pathlib import Path
+                    folder_path = Path(eagle_folder)
+                    # Eagle 會生成縮圖在資料夾中
+                    for thumb_name in ['thumbnail.png', 'cover.jpg', 'cover.png']:
+                        thumb_path = folder_path / thumb_name
+                        if thumb_path.exists():
+                            import discord
+                            file = discord.File(str(thumb_path), filename=thumb_name)
+                            await ctx.send(file=file)
+                            thumbnail_sent = True
+                            break
                 except Exception as e:
-                    logger.error(f"發送封面失敗 ({cover_file}): {e}")
-            else:
-                # 沒有封面時發送提示
-                logger.warning(f"找不到封面圖片: {folder_name}")
+                    logger.debug(f"縮圖發送失敗: {e}")
             
-            # 構建純文字資料訊息
+            # 構建資料訊息
             msg_lines = []
-            
-            # PDF 連結標題 - 使用分隔線美化
             msg_lines.append("━━━━━━━━━━━━━━━━━━")
-            if pdf_files:
-                pdf_name = pdf_files[0].name
-                pdf_url = f"{PDF_WEB_BASE_URL}/{quote(folder_name)}/{quote(pdf_name)}"
-                # 直接顯示 URL，讓 Discord 自動轉換為可點擊連結
-                msg_lines.append(f"📖 **#{gallery_id}**")
-                msg_lines.append(f"📥 {pdf_url}")
-            else:
-                msg_lines.append(f"📖 **#{gallery_id}**")
+            msg_lines.append(f"📖 **#{gallery_id}** (Eagle Library)")
+            if web_url:
+                msg_lines.append(f"📥 {web_url}")
             msg_lines.append("━━━━━━━━━━━━━━━━━━\n")
             
             # 標題
-            if title:
-                msg_lines.append(f"**{title}**")
-            if title_japanese and title_japanese != title:
-                msg_lines.append(f"_{title_japanese}_\n")
-            else:
-                msg_lines.append("")
+            msg_lines.append(f"**{title}**\n")
             
-            # 基本信息 - 分行顯示更清楚
+            # 基本信息
             msg_lines.append("**📊 基本資料**")
-            if pages != '未知':
-                msg_lines.append(f"├ 📄 頁數: **{pages}**")
             if artists:
                 msg_lines.append(f"├ ✍️ 作者: {', '.join(artists[:3])}")
             if groups:
@@ -2665,7 +2584,9 @@ async def random_command(ctx, count: int = 1):
             if len(final_msg) > 1900:
                 final_msg = final_msg[:1900] + "..."
             await ctx.send(final_msg)
-        
+    
+    except ImportError:
+        await ctx.send("❌ Eagle Library 模組未安裝")
     except Exception as e:
         logger.error(f"隨機顯示失敗: {e}")
         await ctx.send(f"❌ 隨機顯示失敗: {e}")

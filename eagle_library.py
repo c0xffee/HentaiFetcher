@@ -174,6 +174,49 @@ class EagleLibrary:
         
         return results
     
+    def get_random(self, count: int = 1) -> List[Dict[str, Any]]:
+        """
+        隨機取得已匯入的項目
+        
+        Args:
+            count: 要取得的數量
+        
+        Returns:
+            隨機選取的項目列表 (含完整資訊)
+        """
+        import random
+        
+        index = self._load_index()
+        imports = index.get("imports", {})
+        
+        if not imports:
+            return []
+        
+        # 限制數量
+        count = min(count, len(imports))
+        
+        # 隨機選取
+        selected_keys = random.sample(list(imports.keys()), count)
+        results = []
+        
+        for folder_name in selected_keys:
+            entry = imports[folder_name]
+            eagle_item_id = entry.get("eagleItemId")
+            
+            if eagle_item_id:
+                # 取得 PDF 完整資訊
+                result = self.find_by_eagle_id(eagle_item_id)
+                if result:
+                    result["folder_name"] = folder_name
+                    result["title"] = entry.get("title", folder_name)
+                    result["nhentai_id"] = entry.get("nhentaiId")
+                    result["nhentai_url"] = entry.get("nhentaiUrl")
+                    result["tags"] = entry.get("tags", [])
+                    result["imported_at"] = entry.get("importedAt")
+                    results.append(result)
+        
+        return results
+    
     def get_stats(self) -> Dict[str, Any]:
         """取得統計資訊"""
         index = self._load_index()

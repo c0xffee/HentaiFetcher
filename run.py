@@ -2006,6 +2006,7 @@ class HentaiFetcherBot(commands.Bot):
                 'search', 's', 'find',           # 搜尋
                 'read', 'open', 'pdf',           # 閱讀
                 'eagle', 'lib', 'library',       # 統計
+                'reindex', 'rebuild', 'sync',    # 重建索引
                 'queue', 'q',                    # 佇列
                 'status',                        # 狀態
                 'list', 'ls',                    # 列表
@@ -2985,7 +2986,7 @@ async def eagle_stats_command(ctx):
             except:
                 pass
         
-        embed.set_footer(text="使用 !search <關鍵字> 搜尋 | !read <ID> 取得連結")
+        embed.set_footer(text="使用 !search <關鍵字> 搜尋 | !read <ID> 取得連結 | !reindex 重建索引")
         
         await ctx.send(embed=embed)
         
@@ -2994,6 +2995,30 @@ async def eagle_stats_command(ctx):
     except Exception as e:
         logger.error(f"統計失敗: {e}")
         await ctx.send(f"❌ 統計失敗: {e}")
+
+
+@bot.command(name='reindex', aliases=['rebuild', 'sync'])
+async def reindex_command(ctx):
+    """重建 Eagle Library 索引：!reindex"""
+    try:
+        from eagle_library import EagleLibrary
+        eagle = EagleLibrary()
+        
+        msg = await ctx.send("🔄 正在掃描 Eagle Library...")
+        
+        added = eagle.rebuild_index()
+        stats = eagle.get_stats()
+        
+        if added > 0:
+            await msg.edit(content=f"✅ 索引重建完成！\n📥 新增 `{added}` 個項目\n📚 總計 `{stats['total_count']}` 本")
+        else:
+            await msg.edit(content=f"✅ 索引已是最新！\n📚 總計 `{stats['total_count']}` 本")
+        
+    except ImportError:
+        await ctx.send("❌ Eagle Library 模組未安裝")
+    except Exception as e:
+        logger.error(f"重建索引失敗: {e}")
+        await ctx.send(f"❌ 重建索引失敗: {e}")
 
 
 @bot.command(name='help', aliases=['h'])
@@ -3106,7 +3131,13 @@ async def help_command(ctx):
         )
         
         embed.add_field(
-            name="🖼️ !fixcover",
+            name="� !reindex",
+            value="重建索引",
+            inline=True
+        )
+        
+        embed.add_field(
+            name="�🖼️ !fixcover",
             value="補充封面圖片",
             inline=True
         )

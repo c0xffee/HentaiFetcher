@@ -184,6 +184,96 @@ class EagleLibrary:
             "last_updated": index.get("lastUpdated"),
             "with_nhentai_id": sum(1 for e in imports.values() if e.get("nhentaiId")),
         }
+    
+    def rebuild_index(self) -> int:
+        """
+        從 Eagle Library 重建索引
+        掃描所有 .info 資料夾，讀取 metadata.json 建立完整索引
+        
+        Returns:
+            新增的項目數量
+        """
+        import re
+        
+        if not self.library_images_path.exists():
+            print(f"Eagle Library 路徑不存在: {self.library_images_path}")
+            return 0
+        
+        # 載入現有索引
+        index = self._load_index()
+        existing_ids = {e.get("eagleItemId") for e in index.get("imports", {}).values()}
+        
+        added = 0
+        
+        # 掃描所有 .info 資料夾
+        for folder in self.library_images_path.iterdir():
+            if not folder.is_dir() or not folder.name.endswith('.info'):
+                continue
+            
+            eagle_item_id = folder.name.replace('.info', '')
+            
+            # 跳過已存在的
+            if eagle_item_id in existing_ids:
+                continue
+            
+            # 讀取 Eagle 的 metadata.json
+            eagle_metadata_path = folder / "metadata.json"
+            if not eagle_metadata_path.exists():
+                continue
+            
+            try:
+                with open(eagle_metadata_path, 'r', encoding='utf-8') as f:
+                    eagle_meta = json.load(f)
+                
+                # 從 Eagle metadata 提取資訊
+                name = eagle_meta.get("name", "")
+                website = eagle_meta.get("url", "")
+                tags = eagle_meta.get("tags", [])
+                annotation = eagle_meta.get("annotation", "")
+                
+                # 從 website 提取 nhentai ID
+                nhentai_id = None
+                if website:
+                    match = re.search(r'nhentai\.net/g/(\d+)', website)
+                    if match:
+                        nhentai_id = match.group(1)
+                
+                # 從 annotation 提取 nhentai ID (備用)
+                if not nhentai_id and annotation:
+                    match = re.search(r'📔 ID: (\d+)', annotation)
+                    if match:
+                        nhentai_id = match.group(1)
+                
+                # 使用 name 作為 key
+                folder_key = name if name else eagle_item_id
+                
+                # 加入索引
+                index["imports"][folder_key] = {
+                    "eagleItemId": eagle_item_id,
+                    "nhentaiId": nhentai_id,
+                    "nhentaiUrl": website if 'nhentai' in website else None,
+                    "title": name,
+                    "tags": tags,
+                    "importedAt": eagle_meta.get("mtime", "")
+                }
+                
+                added += 1
+                print(f"新增: {folder_key} (ID: {nhentai_id or 'N/A'})")
+                
+            except Exception as e:
+                print(f"讀取失敗 {folder.name}: {e}")
+        
+        # 儲存索引
+        if added > 0:
+            index["lastUpdated"] = __import__('datetime').datetime.now().isoformat() + 'Z'
+            with open(self.index_file_path, 'w', encoding='utf-8') as f:
+                json.dump(index, f, ensure_ascii=False, indent=2)
+            
+            # 清除快取
+            self._index_cache = None
+            print(f"\n索引已更新，新增 {added} 個項目")
+        
+        return added
 
 
 # 快速使用的單例
@@ -204,9 +294,22 @@ def find_pdf_url(nhentai_id: str) -> Optional[str]:
     return result["web_url"] if result else None
 
 
+def rebuild_index() -> int:
+    """重建索引的便捷函數"""
+    return get_eagle_library().rebuild_index()
+
+
 if __name__ == "__main__":
-    # 測試
+    import sys
+    
     eagle = EagleLibrary()
+    
+    # 如果帶 --rebuild 參數，重建索引
+    if len(sys.argv) > 1 and sys.argv[1] == '--rebuild':
+        print("=== 重建索引 ===")
+        added = eagle.rebuild_index()
+        print(f"完成，新增 {added} 個項目")
+        print()
     
     print("=== 統計 ===")
     print(eagle.get_stats())

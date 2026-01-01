@@ -13,7 +13,7 @@ HentaiFetcher - Discord Bot 自動化漫畫下載器
 """
 
 # 版本號 - 用來確認容器是否更新
-VERSION = "2.8.0"
+VERSION = "2.9.0"
 
 print(f"[STARTUP] HentaiFetcher 版本 {VERSION} 正在載入...", flush=True)
 
@@ -2795,6 +2795,183 @@ async def cleanup_command(ctx):
         await ctx.send(f"❌ 清除失敗: {e}")
 
 
+# ==================== Eagle Library 搜尋指令 ====================
+
+@bot.command(name='search', aliases=['s', 'find'])
+async def search_command(ctx, *, query: str = None):
+    """搜尋 Eagle Library 中的本子：!search <關鍵字或 nhentai ID>"""
+    if not query:
+        await ctx.send("❌ 請提供搜尋關鍵字或 nhentai ID\n用法：`!search <關鍵字>` 或 `!search <ID>`")
+        return
+    
+    try:
+        from eagle_library import EagleLibrary
+        eagle = EagleLibrary()
+        
+        # 判斷是 ID 還是關鍵字
+        query = query.strip()
+        results = []
+        
+        if query.isdigit():
+            # 用 nhentai ID 搜尋
+            result = eagle.find_by_nhentai_id(query)
+            if result:
+                results = [result]
+            search_type = f"nhentai ID `{query}`"
+        else:
+            # 用關鍵字搜尋
+            results = eagle.find_by_title(query)
+            search_type = f"關鍵字 `{query}`"
+        
+        if not results:
+            await ctx.send(f"🔍 找不到符合 {search_type} 的結果")
+            return
+        
+        # 限制顯示數量
+        total = len(results)
+        results = results[:10]
+        
+        embed = discord.Embed(
+            title=f"🔍 搜尋結果 - {search_type}",
+            description=f"找到 {total} 個結果" + (f"（顯示前 10 個）" if total > 10 else ""),
+            color=discord.Color.blue()
+        )
+        
+        for i, r in enumerate(results, 1):
+            title = r.get('title', '未知')
+            if len(title) > 50:
+                title = title[:47] + "..."
+            
+            nhentai_id = r.get('nhentai_id', 'N/A')
+            web_url = r.get('web_url', '')
+            
+            # 建立欄位內容
+            value = f"📖 ID: `{nhentai_id}`\n"
+            if web_url:
+                value += f"🔗 [開啟 PDF]({web_url})"
+            
+            embed.add_field(
+                name=f"{i}. {title}",
+                value=value,
+                inline=False
+            )
+        
+        embed.set_footer(text="使用 !read <ID> 直接取得連結")
+        await ctx.send(embed=embed)
+        
+    except ImportError:
+        await ctx.send("❌ Eagle Library 模組未安裝")
+    except Exception as e:
+        logger.error(f"搜尋失敗: {e}")
+        await ctx.send(f"❌ 搜尋失敗: {e}")
+
+
+@bot.command(name='read', aliases=['open', 'pdf'])
+async def read_command(ctx, nhentai_id: str = None):
+    """取得本子的 PDF 連結：!read <nhentai ID>"""
+    if not nhentai_id:
+        await ctx.send("❌ 請提供 nhentai ID\n用法：`!read <ID>`（例如：`!read 486715`）")
+        return
+    
+    # 清理輸入
+    nhentai_id = nhentai_id.strip()
+    if not nhentai_id.isdigit():
+        # 嘗試從網址提取
+        match = re.search(r'/g/(\d+)', nhentai_id)
+        if match:
+            nhentai_id = match.group(1)
+        else:
+            await ctx.send("❌ 請提供有效的 nhentai ID 或網址")
+            return
+    
+    try:
+        from eagle_library import EagleLibrary
+        eagle = EagleLibrary()
+        
+        result = eagle.find_by_nhentai_id(nhentai_id)
+        
+        if not result:
+            await ctx.send(f"🔍 找不到 nhentai ID `{nhentai_id}` 的本子\n💡 可能尚未匯入 Eagle，請先使用 `!dl {nhentai_id}` 下載")
+            return
+        
+        title = result.get('title', '未知')
+        web_url = result.get('web_url', '')
+        nhentai_url = result.get('nhentai_url', f"https://nhentai.net/g/{nhentai_id}/")
+        tags = result.get('tags', [])
+        
+        embed = discord.Embed(
+            title=f"📖 {title}",
+            color=discord.Color.green()
+        )
+        
+        embed.add_field(name="🔢 nhentai ID", value=f"`{nhentai_id}`", inline=True)
+        embed.add_field(name="🌐 nhentai", value=f"[開啟]({nhentai_url})", inline=True)
+        
+        if web_url:
+            embed.add_field(name="📄 PDF", value=f"[開啟閱讀]({web_url})", inline=True)
+        
+        # 顯示部分標籤
+        if tags:
+            # 過濾並顯示主要標籤
+            display_tags = [t for t in tags[:8] if not t.startswith(('type:', 'language:'))]
+            if display_tags:
+                embed.add_field(
+                    name="🏷️ 標籤",
+                    value=" ".join([f"`{t}`" for t in display_tags[:6]]),
+                    inline=False
+                )
+        
+        embed.set_footer(text="點擊 PDF 連結即可在瀏覽器中閱讀")
+        
+        await ctx.send(embed=embed)
+        
+    except ImportError:
+        await ctx.send("❌ Eagle Library 模組未安裝")
+    except Exception as e:
+        logger.error(f"讀取失敗: {e}")
+        await ctx.send(f"❌ 讀取失敗: {e}")
+
+
+@bot.command(name='eagle', aliases=['lib', 'library'])
+async def eagle_stats_command(ctx):
+    """顯示 Eagle Library 統計：!eagle"""
+    try:
+        from eagle_library import EagleLibrary
+        eagle = EagleLibrary()
+        
+        stats = eagle.get_stats()
+        
+        embed = discord.Embed(
+            title="🦅 Eagle Library 統計",
+            color=discord.Color.gold()
+        )
+        
+        embed.add_field(name="📚 已匯入", value=f"`{stats['total_count']}` 本", inline=True)
+        embed.add_field(name="🔢 有 ID", value=f"`{stats['with_nhentai_id']}` 本", inline=True)
+        
+        if stats.get('last_updated'):
+            from datetime import datetime
+            try:
+                dt = datetime.fromisoformat(stats['last_updated'].replace('Z', '+00:00'))
+                embed.add_field(
+                    name="🕐 最後更新",
+                    value=dt.strftime("%Y-%m-%d %H:%M"),
+                    inline=True
+                )
+            except:
+                pass
+        
+        embed.set_footer(text="使用 !search <關鍵字> 搜尋 | !read <ID> 取得連結")
+        
+        await ctx.send(embed=embed)
+        
+    except ImportError:
+        await ctx.send("❌ Eagle Library 模組未安裝")
+    except Exception as e:
+        logger.error(f"統計失敗: {e}")
+        await ctx.send(f"❌ 統計失敗: {e}")
+
+
 @bot.command(name='help', aliases=['h'])
 async def help_command(ctx):
     """顯示說明：!help"""
@@ -2829,6 +3006,10 @@ async def help_command(ctx):
                   "`random` `r [n]` - 隨機顯示\n"
                   "`fixcover` `fc` - 補充封面\n"
                   "`cleanup` `clean` - 清除重複\n"
+                  "**🦅 Eagle 搜尋：**\n"
+                  "`search` `s` <關鍵字> - 搜尋本子\n"
+                  "`read` <ID> - 取得 PDF 連結\n"
+                  "`eagle` `lib` - Library 統計\n"
                   "`ping` - 測試連線\n"
                   "`version` `v` - 版本號\n"
                   "`help` `h` - 顯示此說明",
@@ -2879,6 +3060,24 @@ async def help_command(ctx):
         embed.add_field(
             name="🎲 !random [n]",
             value="隨機顯示 n 本",
+            inline=True
+        )
+        
+        embed.add_field(
+            name="🔍 !search <關鍵字>",
+            value="搜尋 Eagle Library",
+            inline=True
+        )
+        
+        embed.add_field(
+            name="📖 !read <ID>",
+            value="取得 PDF 連結",
+            inline=True
+        )
+        
+        embed.add_field(
+            name="🦅 !eagle",
+            value="Library 統計",
             inline=True
         )
         

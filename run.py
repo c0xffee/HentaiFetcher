@@ -3059,6 +3059,7 @@ async def help_command(ctx):
                   "`search` `s` <關鍵字> - 搜尋本子\n"
                   "`read` <ID> - 取得 PDF 連結\n"
                   "`eagle` `lib` - Library 統計\n"
+                  "`reindex` `rebuild` - 重建索引\n"
                   "`ping` - 測試連線\n"
                   "`version` `v` - 版本號\n"
                   "`help` `h` - 顯示此說明",

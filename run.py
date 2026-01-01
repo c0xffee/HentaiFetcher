@@ -1177,9 +1177,14 @@ class DownloadProcessor:
                 
                 # 階段 2: 下載圖片
                 print(f"[GALLERY-DL] 階段2: 下載圖片...", flush=True)
+                
+                # 設定檔路徑
+                config_path = BASE_DIR / "config" / "gallery-dl.conf"
+                
                 cmd = [
                     sys.executable,
                     '-m', 'gallery_dl',
+                    '--config', str(config_path),
                     '--dest', str(self.temp_path),
                     '--write-metadata',
                     self.url

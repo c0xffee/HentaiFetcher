@@ -2501,6 +2501,7 @@ async def random_command(ctx, count: int = 1):
     """隨機顯示本子：!random [數量]"""
     try:
         from eagle_library import EagleLibrary
+        from pathlib import Path
         import re
         
         eagle = EagleLibrary()
@@ -2529,55 +2530,62 @@ async def random_command(ctx, count: int = 1):
             languages = [tag.replace('language:', '') for tag in tags if isinstance(tag, str) and tag.startswith('language:')]
             other_tags = [tag for tag in tags if isinstance(tag, str) and not any(tag.startswith(prefix) for prefix in ['artist:', 'parody:', 'group:', 'language:', 'type:'])]
             
-            # 嘗試發送縮圖
-            thumbnail_sent = False
+            # 先發送封面圖片
+            cover_sent = False
             if eagle_folder:
                 try:
-                    from pathlib import Path
                     folder_path = Path(eagle_folder)
-                    # Eagle 會生成縮圖在資料夾中
-                    for thumb_name in ['thumbnail.png', 'cover.jpg', 'cover.png']:
-                        thumb_path = folder_path / thumb_name
-                        if thumb_path.exists():
-                            import discord
-                            file = discord.File(str(thumb_path), filename=thumb_name)
+                    # Eagle 資料夾中可能的封面檔名
+                    for cover_name in ['cover.jpg', 'cover.png', 'cover.webp', 'thumbnail.png']:
+                        cover_path = folder_path / cover_name
+                        if cover_path.exists():
+                            file = discord.File(str(cover_path), filename=cover_name)
                             await ctx.send(file=file)
-                            thumbnail_sent = True
+                            cover_sent = True
+                            logger.info(f"發送封面: {cover_name}")
                             break
+                    
+                    # 如果沒找到封面，找第一張圖片
+                    if not cover_sent:
+                        for ext in ['*.jpg', '*.jpeg', '*.png', '*.webp']:
+                            images = list(folder_path.glob(ext))
+                            if images:
+                                images.sort(key=lambda x: x.name)
+                                file = discord.File(str(images[0]), filename=images[0].name)
+                                await ctx.send(file=file)
+                                cover_sent = True
+                                break
                 except Exception as e:
-                    logger.debug(f"縮圖發送失敗: {e}")
+                    logger.debug(f"封面發送失敗: {e}")
             
             # 構建資料訊息
             msg_lines = []
-            msg_lines.append("━━━━━━━━━━━━━━━━━━")
-            msg_lines.append(f"📖 **#{gallery_id}** (Eagle Library)")
+            
+            # 標題與連結
+            msg_lines.append(f"📖 **#{gallery_id}**")
             if web_url:
                 msg_lines.append(f"📥 {web_url}")
-            msg_lines.append("━━━━━━━━━━━━━━━━━━\n")
-            
-            # 標題
-            msg_lines.append(f"**{title}**\n")
+            msg_lines.append(f"\n**{title}**\n")
             
             # 基本信息
-            msg_lines.append("**📊 基本資料**")
+            info_lines = []
             if artists:
-                msg_lines.append(f"├ ✍️ 作者: {', '.join(artists[:3])}")
+                info_lines.append(f"✍️ 作者: {', '.join(artists[:3])}")
             if groups:
-                msg_lines.append(f"├ 👥 社團: {', '.join(groups[:2])}")
+                info_lines.append(f"👥 社團: {', '.join(groups[:2])}")
             if parodies:
-                msg_lines.append(f"├ 🎬 原作: {', '.join(parodies[:3])}")
+                info_lines.append(f"🎬 原作: {', '.join(parodies[:3])}")
             if languages:
-                msg_lines.append(f"└ 🌐 語言: {', '.join(languages)}")
+                info_lines.append(f"🌐 語言: {', '.join(languages)}")
+            
+            if info_lines:
+                msg_lines.extend(info_lines)
             
             # Tags
             if other_tags:
-                msg_lines.append(f"\n**🏷️ 標籤**")
-                tags_text = ", ".join([f"`{tag}`" for tag in other_tags[:12]])
-                if len(other_tags) > 12:
-                    tags_text += f" `+{len(other_tags)-12}`"
-                msg_lines.append(tags_text)
-            
-            msg_lines.append("\n━━━━━━━━━━━━━━━━━━")
+                msg_lines.append(f"\n🏷️ {', '.join([f'`{tag}`' for tag in other_tags[:10]])}")
+                if len(other_tags) > 10:
+                    msg_lines.append(f"`+{len(other_tags)-10} more`")
             
             # 發送資料訊息
             final_msg = "\n".join(msg_lines)

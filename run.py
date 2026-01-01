@@ -1543,8 +1543,8 @@ class DownloadProcessor:
             pdf_filename = f"{safe_title}.pdf"
             pdf_web_url = f"{PDF_WEB_BASE_URL}/{quote(folder_name)}/{quote(pdf_filename)}"
             
-            # 標題嵌入連結，讓使用者可以直接點擊觀看 PDF
-            return True, f"✅ 完成: [{safe_title}]({pdf_web_url})\n📄 {page_count}頁 ⏱️ {elapsed_str}\n📁 {output_path_str}"
+            # 使用純 URL 顯示（避免 markdown 連結被編碼的括號破壞）
+            return True, f"✅ 完成: **{safe_title}**\n📄 {page_count}頁 ⏱️ {elapsed_str}\n📥 {pdf_web_url}\n📁 {output_path_str}"
             
         except Exception as e:
             logger.exception(f"處理過程發生錯誤: {e}")
@@ -2597,8 +2597,9 @@ async def random_command(ctx, count: int = 1):
             if pdf_files:
                 pdf_name = pdf_files[0].name
                 pdf_url = f"{PDF_WEB_BASE_URL}/{quote(folder_name)}/{quote(pdf_name)}"
-                # Discord markdown 連結格式：[文字](URL)
-                msg_lines.append(f"📖 **#{gallery_id}** │ [📥 點擊閱讀 PDF]({pdf_url})")
+                # 直接顯示 URL，讓 Discord 自動轉換為可點擊連結
+                msg_lines.append(f"📖 **#{gallery_id}**")
+                msg_lines.append(f"📥 {pdf_url}")
             else:
                 msg_lines.append(f"📖 **#{gallery_id}**")
             msg_lines.append("━━━━━━━━━━━━━━━━━━\n")

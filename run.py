@@ -1128,7 +1128,10 @@ class DownloadProcessor:
     
     def convert_to_pdf(self, images: List[Path], output_pdf: Path) -> bool:
         """
-        使用 img2pdf 將圖片轉換為無損 PDF（支援進度回報）
+        使用 Pillow 將圖片轉換為等寬 PDF（支援進度回報）
+        
+        所有圖片會被調整為統一寬度（使用最大寬度），高度按比例縮放，
+        確保 PDF 每一頁都是 100% 寬度對齊。
         
         Args:
             images: 圖片檔案列表
@@ -1142,33 +1145,90 @@ class DownloadProcessor:
             return False
         
         try:
+            from PIL import Image
+            
             self.pdf_converting = True
             self.pdf_progress = 0
             
             # 確保輸出目錄存在
             output_pdf.parent.mkdir(parents=True, exist_ok=True)
             
-            logger.info(f"轉換 {len(images)} 張圖片為 PDF")
+            logger.info(f"轉換 {len(images)} 張圖片為等寬 PDF")
             
-            # 使用 Python img2pdf 庫直接處理，並回報進度
-            import img2pdf
-            
-            # 讀取所有圖片並追蹤進度
-            image_data = []
             total = len(images)
             
-            for i, img_path in enumerate(images):
-                with open(img_path, 'rb') as f:
-                    image_data.append(f.read())
-                self.pdf_progress = int((i + 1) / total * 50)  # 讀取階段佔 50%
-                # 每 10 張圖片等待一下，讓進度能被捕捉
-                if (i + 1) % 10 == 0:
-                    time.sleep(0.1)
+            # 階段 1: 讀取所有圖片並找出最大寬度 (0-20%)
+            logger.info("階段 1/3: 分析圖片尺寸...")
+            pil_images = []
+            max_width = 0
             
-            # 寫入 PDF
-            self.pdf_progress = 60  # 開始寫入
-            with open(output_pdf, 'wb') as f:
-                f.write(img2pdf.convert(image_data))
+            for i, img_path in enumerate(images):
+                img = Image.open(img_path)
+                # 轉換為 RGB（PDF 不支援 RGBA 透明通道）
+                if img.mode in ('RGBA', 'P', 'LA'):
+                    # 建立白色背景
+                    background = Image.new('RGB', img.size, (255, 255, 255))
+                    if img.mode == 'P':
+                        img = img.convert('RGBA')
+                    if img.mode in ('RGBA', 'LA'):
+                        background.paste(img, mask=img.split()[-1])  # 使用 alpha 通道作為遮罩
+                        img = background
+                    else:
+                        img = img.convert('RGB')
+                elif img.mode != 'RGB':
+                    img = img.convert('RGB')
+                
+                pil_images.append(img)
+                if img.width > max_width:
+                    max_width = img.width
+                
+                self.pdf_progress = int((i + 1) / total * 20)
+                if (i + 1) % 10 == 0:
+                    time.sleep(0.05)
+            
+            logger.info(f"統一寬度: {max_width}px")
+            
+            # 階段 2: 調整所有圖片為等寬 (20-70%)
+            logger.info("階段 2/3: 調整圖片為等寬...")
+            resized_images = []
+            
+            for i, img in enumerate(pil_images):
+                if img.width != max_width:
+                    # 按比例縮放到目標寬度
+                    ratio = max_width / img.width
+                    new_height = int(img.height * ratio)
+                    # 使用高品質縮放
+                    resized_img = img.resize((max_width, new_height), Image.Resampling.LANCZOS)
+                    resized_images.append(resized_img)
+                else:
+                    resized_images.append(img)
+                
+                self.pdf_progress = 20 + int((i + 1) / total * 50)
+                if (i + 1) % 10 == 0:
+                    time.sleep(0.05)
+            
+            # 階段 3: 儲存為 PDF (70-100%)
+            logger.info("階段 3/3: 生成 PDF...")
+            self.pdf_progress = 75
+            
+            # 第一張圖片作為基底，其餘 append
+            first_image = resized_images[0]
+            rest_images = resized_images[1:] if len(resized_images) > 1 else []
+            
+            first_image.save(
+                output_pdf,
+                "PDF",
+                save_all=True,
+                append_images=rest_images,
+                resolution=100.0
+            )
+            
+            # 清理記憶體
+            for img in pil_images:
+                img.close()
+            for img in resized_images:
+                if img not in pil_images:  # 避免重複 close
+                    img.close()
             
             self.pdf_progress = 100
             self.pdf_converting = False
@@ -1182,7 +1242,9 @@ class DownloadProcessor:
                 return False
                 
         except Exception as e:
-            logger.error(f"img2pdf 執行錯誤: {e}")
+            logger.error(f"PDF 轉換錯誤: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
             self.pdf_converting = False
             return False
     

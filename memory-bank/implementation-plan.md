@@ -54,5 +54,10 @@
 ## 📝 Changelog (變更日誌)
 
 ### 2026-01-02
+- **fix: PDF 等寬功能**
+  - 改用 Pillow 取代 img2pdf 進行 PDF 轉換
+  - 自動找出最大寬度，將所有圖片按比例縮放至統一寬度
+  - 確保 PDF 每頁都是 100% 寬度對齊
+  - 支援 RGBA/P/LA 等透明圖片模式轉換為 RGB
 - 建立 Vibe Coding 文件架構
 - 初始化 Memory Bank

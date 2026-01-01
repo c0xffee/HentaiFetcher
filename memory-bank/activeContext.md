@@ -4,6 +4,11 @@
 - 正在執行的任務：修復下載與 PDF 生成流程
 
 ## Recent Changes (最近更動)
+- [x] 2026-01-02 新增重複下載檢查功能
+  - 新增 `check_already_downloaded()` 函數查詢 Eagle Library
+  - `!dl` 指令加入重複檢查，跳過已存在項目
+  - 專用頻道直接貼號碼也會檢查重複
+  - `!test` / `test` 指令可強制跳過檢查重新下載
 - [x] 2026-01-02 修復 gallery-dl Windows 路徑過長問題
   - 修改 gallery-dl.conf 使用 `["nhentai", "{gallery_id}"]` 格式
   - 新增 `--config` 參數確保讀取設定檔

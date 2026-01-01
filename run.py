@@ -249,6 +249,28 @@ def generate_eagle_id() -> str:
     return f"L{int(datetime.now().timestamp() * 1000)}"
 
 
+def check_already_downloaded(gallery_id: str) -> tuple[bool, Optional[dict]]:
+    """
+    檢查 gallery 是否已經下載過 (存在於 Eagle Library)
+    
+    Args:
+        gallery_id: nhentai Gallery ID
+    
+    Returns:
+        (已存在, 結果資訊) - 如果已存在，結果包含 web_url, title 等
+    """
+    try:
+        from eagle_library import EagleLibrary
+        eagle = EagleLibrary()
+        result = eagle.find_by_nhentai_id(gallery_id)
+        if result:
+            return True, result
+        return False, None
+    except Exception as e:
+        logger.warning(f"檢查重複下載時發生錯誤: {e}")
+        return False, None
+
+
 def verify_nhentai_url(gallery_id: str) -> tuple[bool, str]:
     """
     驗證 nhentai gallery 是否存在且可訪問
@@ -2093,29 +2115,55 @@ class HentaiFetcherBot(commands.Bot):
                 await message.channel.send("⚠️ 無法解析輸入。請提供有效的網址或 nhentai 號碼。")
                 return
             
-            # 發送狀態訊息（簡化版，只顯示號碼）
-            queue_size = download_queue.qsize() + len(parsed_urls)
+            # 提取所有 gallery ID 並檢查重複
+            new_urls = []
+            already_exists = []
             
-            # 提取所有 gallery ID
-            gallery_ids = []
             for url in parsed_urls:
                 match = re.search(r'/g/(\d+)', url)
                 if match:
-                    gallery_ids.append(match.group(1))
+                    gallery_id = match.group(1)
+                    # 檢查是否已下載
+                    exists, info = check_already_downloaded(gallery_id)
+                    if exists:
+                        already_exists.append((gallery_id, info))
+                    else:
+                        new_urls.append((url, gallery_id))
+                else:
+                    new_urls.append((url, None))
             
-            if len(parsed_urls) == 1 and gallery_ids:
+            # 回報已存在的項目
+            if already_exists:
+                if len(already_exists) == 1:
+                    gid, info = already_exists[0]
+                    title = info.get('title', '')[:40]
+                    web_url = info.get('web_url', '')
+                    await message.channel.send(f"📚 **#{gid}** 已存在\n📖 {title}\n🔗 {web_url}")
+                else:
+                    exist_list = "\n".join([f"• `{gid}`: {info.get('title', '')[:30]}" for gid, info in already_exists[:5]])
+                    await message.channel.send(f"📚 **{len(already_exists)}** 個已存在（跳過）:\n{exist_list}")
+            
+            # 如果沒有新的要下載
+            if not new_urls:
+                return
+            
+            # 發送狀態訊息（簡化版，只顯示號碼）
+            queue_size = download_queue.qsize() + len(new_urls)
+            gallery_ids = [gid for _, gid in new_urls if gid]
+            
+            if len(new_urls) == 1 and gallery_ids:
                 await message.channel.send(f"📥 **#{gallery_ids[0]}** 已加入佇列\n📊 佇列: {queue_size}")
             elif len(gallery_ids) <= 15:
                 id_list = ", ".join([f"`{gid}`" for gid in gallery_ids])
                 await message.channel.send(f"📥 **{len(gallery_ids)}** 個已加入佇列\n🔢 {id_list}\n📊 佇列: {queue_size}")
             else:
-                await message.channel.send(f"📥 **{len(parsed_urls)}** 個已加入佇列\n📊 佇列: {queue_size}")
+                await message.channel.send(f"📥 **{len(new_urls)}** 個已加入佇列\n📊 佇列: {queue_size}")
             
             # 加入佇列（不再傳遞 status_msg_id，因為 loading emoji 改在開始下載時顯示）
-            for url in parsed_urls:
+            for url, _ in new_urls:
                 download_queue.put((url, message.channel.id, None))
             
-            logger.info(f"新增 {len(parsed_urls)} 個下載任務 (來自: {message.author})")
+            logger.info(f"新增 {len(new_urls)} 個下載任務 (來自: {message.author})")
             return
         
         # ===== 處理 !test 指令（強制重新下載，跳過重複檢查）=====
@@ -2318,6 +2366,7 @@ class HentaiFetcherBot(commands.Bot):
         # 驗證並加入佇列
         valid_urls = []
         invalid_urls = []
+        already_exists = []
         
         # 添加 reaction 表示處理中
         try:
@@ -2330,6 +2379,12 @@ class HentaiFetcherBot(commands.Bot):
             match = re.search(r'/g/(\d+)', url)
             if match:
                 gallery_id = match.group(1)
+                
+                # 先檢查是否已下載
+                exists, exist_info = check_already_downloaded(gallery_id)
+                if exists:
+                    already_exists.append((gallery_id, exist_info))
+                    continue
                 
                 # 驗證是否可訪問
                 is_valid, info = verify_nhentai_url(gallery_id)
@@ -2346,6 +2401,17 @@ class HentaiFetcherBot(commands.Bot):
             await message.remove_reaction('⏳', self.user)
         except:
             pass
+        
+        # 回報已存在的項目
+        if already_exists:
+            if len(already_exists) == 1:
+                gid, info = already_exists[0]
+                title = info.get('title', '')[:40]
+                web_url = info.get('web_url', '')
+                await message.channel.send(f"📚 **#{gid}** 已存在\n📖 {title}\n🔗 {web_url}")
+            else:
+                exist_list = "\n".join([f"• `{gid}`: {info.get('title', '')[:30]}" for gid, info in already_exists[:5]])
+                await message.channel.send(f"📚 **{len(already_exists)}** 個已存在（跳過）:\n{exist_list}")
         
         # 處理無效的 URL
         if invalid_urls:

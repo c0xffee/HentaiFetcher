@@ -177,7 +177,13 @@ function readJsonFile(filePath) {
  */
 function moveFolder(source, destination) {
     try {
-        // 確保目標目錄存在
+        // 確保來源存在
+        if (!fs.existsSync(source)) {
+            log(`來源資料夾不存在: ${source}`, 'error');
+            return false;
+        }
+        
+        // 確保目標目錄的父層存在
         ensureDir(path.dirname(destination));
         
         // 如果目標已存在，先刪除
@@ -189,13 +195,25 @@ function moveFolder(source, destination) {
         // 使用 rename 移動 (同一磁碟機更快)
         try {
             fs.renameSync(source, destination);
+            return true; // 成功就直接返回
         } catch (renameErr) {
+            // rename 失敗時，先確認來源是否還存在
+            if (!fs.existsSync(source)) {
+                // 來源不存在但目標存在，表示移動其實成功了
+                if (fs.existsSync(destination)) {
+                    log(`移動成功 (rename 報錯但實際成功)`, 'info');
+                    return true;
+                }
+                log(`來源資料夾已消失: ${source}`, 'error');
+                return false;
+            }
+            
             // 如果 rename 失敗 (跨磁碟機)，使用複製後刪除
+            log(`使用複製模式移動 (rename 失敗: ${renameErr.message})`, 'info');
             copyFolderRecursive(source, destination);
             fs.rmSync(source, { recursive: true, force: true });
+            return true;
         }
-        
-        return true;
     } catch (err) {
         log(`移動資料夾失敗: ${err.message}`, 'error');
         return false;

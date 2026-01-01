@@ -13,6 +13,7 @@
   - 新增 `MANDATORY AUTO-UPDATE PROTOCOL` 到 copilot-instructions.md
   - 強化 systemPatterns.md 的 AI 行為準則
   - AI 現在必須自動更新 Memory Bank + Git Commit
+  - 同步更新 VIBE_WORKFLOW_MASTER.md 讓其他專案也能使用
 
 ## Next Steps (下一步)
 - [ ] 進行顧問式訪談，收斂需求

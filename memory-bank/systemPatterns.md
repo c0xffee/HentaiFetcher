@@ -59,8 +59,7 @@ HentaiFetcher/
 ├── imported/           # Eagle 匯入後歸檔位置
 ├── temp/               # 暫存下載檔案
 ├── memory-bank/        # Vibe Coding 文件
-├── nHentai-Auto-Importer/  # (舊) nHentai 插件
-└── Eagle-Auto-Importer/    # Eagle NAS 自動入庫插件
+└── nHentai-Auto-Importer/  # nHentai NAS 自動入庫插件
     ├── manifest.json   # 插件描述檔
     ├── index.html      # 插件 UI
     └── js/

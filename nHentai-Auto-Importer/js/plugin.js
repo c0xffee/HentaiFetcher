@@ -1,5 +1,5 @@
 /**
- * Eagle NAS Auto-Importer
+ * nHentai Auto-Importer
  * 自動掃描 NAS 資料夾，匯入 PDF 並填寫 metadata
  * 
  * @version 1.0.0
@@ -373,7 +373,7 @@ async function scanNasFolder() {
  * 插件建立時
  */
 eagle.onPluginCreate((plugin) => {
-    console.log('Eagle NAS Auto-Importer 已載入');
+    console.log('nHentai Auto-Importer 已載入');
     console.log('Plugin Info:', plugin);
 });
 
@@ -381,7 +381,7 @@ eagle.onPluginCreate((plugin) => {
  * 插件執行時
  */
 eagle.onPluginRun(async () => {
-    log('🦅 Eagle NAS Auto-Importer 啟動', 'success');
+    log('📚 nHentai Auto-Importer 啓動', 'success');
     log(`監控路徑: ${CONFIG.NAS_WATCH_PATH}`, 'info');
     log(`歸檔路徑: ${CONFIG.IMPORTED_PATH}`, 'info');
     log(`掃描間隔: ${CONFIG.SCAN_INTERVAL / 1000} 秒`, 'info');

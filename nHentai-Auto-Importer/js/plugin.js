@@ -328,6 +328,18 @@ async function processComicFolder(folderPath, folderName) {
                 log(`匯入成功, ID: ${itemId}`, 'success');
                 successfulImports++;
                 
+                // 重新生成縮圖，確保 Eagle 正確識別為 PDF 文件
+                // 這樣點擊時會使用 PDF 閱讀模式而不是圖片瀏覽模式
+                try {
+                    const item = await eagle.item.getById(itemId);
+                    if (item) {
+                        await item.refreshThumbnail();
+                        log(`已刷新縮圖: ${pdfFile}`, 'info');
+                    }
+                } catch (refreshErr) {
+                    log(`刷新縮圖失敗: ${refreshErr.message}`, 'warn');
+                }
+                
                 importedCount++;
                 updateStatsUI();
             } else {

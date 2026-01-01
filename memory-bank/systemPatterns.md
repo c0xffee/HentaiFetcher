@@ -56,8 +56,15 @@ HentaiFetcher/
 │   ├── gallery-dl.conf # gallery-dl 設定
 │   └── bot.log         # 日誌檔案
 ├── downloads/          # 最終輸出 (PDF + metadata)
+├── imported/           # Eagle 匯入後歸檔位置
 ├── temp/               # 暫存下載檔案
-└── memory-bank/        # Vibe Coding 文件
+├── memory-bank/        # Vibe Coding 文件
+├── nHentai-Auto-Importer/  # (舊) nHentai 插件
+└── Eagle-Auto-Importer/    # Eagle NAS 自動入庫插件
+    ├── manifest.json   # 插件描述檔
+    ├── index.html      # 插件 UI
+    └── js/
+        └── plugin.js   # 插件核心邏輯
 ```
 
 ## Git Workflow Standards

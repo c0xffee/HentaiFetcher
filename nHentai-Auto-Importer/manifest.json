@@ -1,0 +1,16 @@
+{
+    "id": "56d8ecff-5897-4946-ac62-29f853d260a7",
+    "version": "1.0.0",
+    "platform": "all",
+    "arch": "all",
+    "name": "nHentai-Auto-Importer",
+    "logo": "/logo.png",
+    "keywords": [],
+    "devTools": false,
+    "main": {
+        "serviceMode": true,
+        "url": "index.html",
+        "width": 640,
+        "height": 480
+    }
+}

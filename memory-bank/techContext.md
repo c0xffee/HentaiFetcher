@@ -35,6 +35,14 @@
 ## External Integrations
 - **Discord API**: Bot 指令與訊息互動
 - **Eagle**: 透過 metadata.json 匯入收藏
+- **Eagle Plugin API**: 背景服務自動匯入 PDF 與 metadata
+
+## Eagle Auto-Importer 插件
+- **類型**: Background Service
+- **執行環境**: Eagle Plugin API (基於 Node.js)
+- **監控路徑**: `\\192.168.10.2\docker\HentaiFetcher\downloads`
+- **歸檔路徑**: `\\192.168.10.2\docker\HentaiFetcher\imported`
+- **掃描間隔**: 30 秒
 
 ## Development Environment
 - **IDE**: VS Code + GitHub Copilot

@@ -25,10 +25,14 @@
 
 ---
 
-## 🚀 Phase 2: Enhancement (功能增強) - 待規劃
-> 待顧問式訪談後確認
+## 🚀 Phase 2: Enhancement (功能增強) - 進行中
+> Eagle 插件開發
 
-- [ ] Step 2.1: [待確認功能]
+- [x] Step 2.1: Eagle NAS Auto-Importer 插件
+  - 背景服務每 30 秒掃描 NAS 資料夾
+  - 自動匯入 PDF 到 Eagle
+  - 讀取 metadata.json 填寫標籤/網址/註釋
+  - 匯入後歸檔到 imported 資料夾
 - [ ] Step 2.2: [待確認功能]
 - [ ] Step 2.3: [待確認功能]
 
@@ -54,6 +58,16 @@
 ## 📝 Changelog (變更日誌)
 
 ### 2026-01-02
+- **feat: Eagle NAS Auto-Importer 插件**
+  - 建立 `Eagle-Auto-Importer/` 插件目錄
+  - `manifest.json` - 設定為 background service
+  - `index.html` - 插件 UI 顯示服務狀態與日誌
+  - `js/plugin.js` - 核心邏輯
+    - 定時掃描 NAS 資料夾 (可設定間隔)
+    - 自動匯入 PDF 檔案到 Eagle
+    - 讀取 metadata.json 並更新 Eagle 項目資訊
+    - 匯入成功後自動歸檔
+  - 建立 `imported/` 資料夾用於歸檔
 - **fix: PDF 等寬功能**
   - 改用 Pillow 取代 img2pdf 進行 PDF 轉換
   - 自動找出最大寬度，將所有圖片按比例縮放至統一寬度

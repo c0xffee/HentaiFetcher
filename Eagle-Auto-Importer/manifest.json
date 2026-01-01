@@ -1,0 +1,16 @@
+{
+    "id": "eagle-nas-auto-importer",
+    "version": "1.0.0",
+    "platform": "all",
+    "arch": "all",
+    "name": "Eagle NAS Auto-Importer",
+    "logo": "/logo.png",
+    "keywords": ["nas", "auto-import", "metadata", "pdf"],
+    "devTools": false,
+    "main": {
+        "serviceMode": true,
+        "url": "index.html",
+        "width": 500,
+        "height": 400
+    }
+}

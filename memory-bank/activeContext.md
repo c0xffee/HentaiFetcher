@@ -1,9 +1,15 @@
 # Active Context
 
 ## Current Focus (目前焦點)
-- 正在執行的任務：修復 PDF 圖片寬度不一致問題
+- 正在執行的任務：開發 Eagle NAS Auto-Importer 插件
 
 ## Recent Changes (最近更動)
+- [x] 2026-01-02 建立 Eagle NAS Auto-Importer 插件
+  - 建立 `Eagle-Auto-Importer/` 插件目錄
+  - 實作背景服務掃描 NAS 資料夾功能
+  - 自動匯入 PDF 並讀取 metadata.json 填寫標籤、網址、註釋
+  - 匯入後自動歸檔到 imported 資料夾
+  - 支援 UNC 路徑 (\\192.168.10.2\docker\HentaiFetcher\downloads)
 - [x] 2026-01-02 改進 fixcover 指令
   - 當 nhentai 封面下載失敗時，自動使用第一張圖片作為封面
   - 新增 `get_first_image_as_cover` 函數
@@ -28,9 +34,10 @@
   - 同步更新 VIBE_WORKFLOW_MASTER.md 讓其他專案也能使用
 
 ## Next Steps (下一步)
+- [ ] 測試 Eagle NAS Auto-Importer 插件
+- [ ] 將插件安裝到 Eagle 進行實際測試
 - [ ] 測試 PDF 等寬功能
 - [ ] 進行顧問式訪談，收斂需求
-- [ ] 完善 productContext.md 的功能範疇
 
 ## Open Questions (待解決問題)
 - [ ] 是否有新功能需求？

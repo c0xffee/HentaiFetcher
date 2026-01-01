@@ -421,6 +421,78 @@ def download_nhentai_cover(gallery_id: str, save_path: Path) -> bool:
         return False
 
 
+def download_nhentai_first_page(gallery_id: str, save_path: Path) -> bool:
+    """
+    從 nhentai 下載第一頁圖片作為封面（備用方案）
+    
+    Args:
+        gallery_id: Gallery ID
+        save_path: 保存路徑（資料夾）
+    
+    Returns:
+        是否成功
+    """
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+    }
+    
+    try:
+        # 獲取 gallery 資訊
+        api_url = f"https://nhentai.net/api/gallery/{gallery_id}"
+        response = requests.get(api_url, headers=headers, timeout=30)
+        if response.status_code != 200:
+            logger.warning(f"無法獲取 gallery 資訊: {gallery_id}")
+            return False
+        
+        data = response.json()
+        media_id = data.get('media_id', '')
+        if not media_id:
+            logger.warning(f"找不到 media_id: {gallery_id}")
+            return False
+        
+        # 獲取第一頁格式
+        images = data.get('images', {})
+        pages = images.get('pages', [])
+        if not pages:
+            logger.warning(f"找不到頁面資訊: {gallery_id}")
+            return False
+        
+        first_page = pages[0]
+        page_type = first_page.get('t', 'j')  # j=jpg, p=png, g=gif, w=webp
+        
+        ext_map = {'j': 'jpg', 'p': 'png', 'g': 'gif', 'w': 'webp'}
+        ext = ext_map.get(page_type, 'jpg')
+        
+        # 嘗試多個 URL 格式下載第一頁
+        first_page_urls = [
+            f"https://i.nhentai.net/galleries/{media_id}/1.{ext}",
+            f"https://i2.nhentai.net/galleries/{media_id}/1.{ext}",
+            f"https://i5.nhentai.net/galleries/{media_id}/1.{ext}",
+            f"https://i7.nhentai.net/galleries/{media_id}/1.{ext}",
+        ]
+        
+        for page_url in first_page_urls:
+            try:
+                logger.info(f"嘗試下載第一頁作為封面: {page_url}")
+                response = requests.get(page_url, headers=headers, timeout=30)
+                if response.status_code == 200:
+                    cover_path = save_path / f"cover.{ext}"
+                    with open(cover_path, 'wb') as f:
+                        f.write(response.content)
+                    logger.info(f"第一頁已保存為封面: {cover_path}")
+                    return True
+            except Exception as e:
+                logger.debug(f"嘗試 {page_url} 失敗: {e}")
+                continue
+        
+        logger.warning(f"所有第一頁 URL 都失敗")
+        return False
+            
+    except Exception as e:
+        logger.error(f"下載第一頁錯誤: {e}")
+        return False
+
+
 def get_first_image_as_cover(folder_path: Path) -> bool:
     """
     使用資料夾內的第一張圖片作為封面
@@ -2620,25 +2692,32 @@ async def fixcover_command(ctx):
                 if download_nhentai_cover(gallery_id, folder):
                     fixed_count += 1
                     cover_success = True
-                    logger.info(f"補充封面成功 (nhentai): {folder.name}")
+                    logger.info(f"補充封面成功 (nhentai 封面): {folder.name}")
+                else:
+                    # 封面下載失敗，嘗試下載第一頁作為封面
+                    await asyncio.sleep(0.3)  # 短暫延遲避免請求太快
+                    if download_nhentai_first_page(gallery_id, folder):
+                        fallback_count += 1
+                        cover_success = True
+                        logger.info(f"補充封面成功 (nhentai 第一頁): {folder.name}")
                 # 避免請求太頻繁
                 await asyncio.sleep(0.5)
             
-            # 如果從 nhentai 下載失敗，使用第一張圖片作為封面
+            # 如果從 nhentai 都失敗，嘗試使用資料夾內的第一張圖片
             if not cover_success:
                 first_image = get_first_image_as_cover(folder)
                 if first_image:
                     fallback_count += 1
                     cover_success = True
-                    logger.info(f"補充封面成功 (第一張圖片): {folder.name}")
+                    logger.info(f"補充封面成功 (本地圖片): {folder.name}")
                 else:
                     failed_count += 1
-                    logger.warning(f"補充封面失敗 (無圖片可用): {folder.name}")
+                    logger.warning(f"補充封面失敗 (所有方法都失敗): {folder.name}")
         
         msg = f"✅ 完成！\n"
-        msg += f"📥 從 nhentai 下載了 {fixed_count} 個封面\n"
+        msg += f"📥 從 nhentai 封面下載了 {fixed_count} 個\n"
         if fallback_count > 0:
-            msg += f"🖼️ 使用第一張圖片作為封面 {fallback_count} 個\n"
+            msg += f"🖼️ 使用備用方案 {fallback_count} 個\n"
         msg += f"⏭️ 跳過 {skipped_count} 個已有封面\n"
         if failed_count > 0:
             msg += f"❌ 失敗 {failed_count} 個"

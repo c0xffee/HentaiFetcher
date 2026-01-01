@@ -31,7 +31,14 @@ const CONFIG = {
     SCAN_ON_START: true,
     
     // 是否啟用詳細日誌
-    DEBUG: true
+    DEBUG: true,
+    
+    // ==================== Web URL 索引設定 ====================
+    // Synology Web Station 基礎 URL (指向 Eagle Library 的 images 資料夾)
+    WEB_BASE_URL: 'http://192.168.0.32:8888',
+    
+    // 匯入索引檔案路徑 (供 Discord Bot 讀取)
+    INDEX_FILE_PATH: 'Z:\\HentaiFetcher\\imports-index.json'
 };
 
 /**
@@ -169,6 +176,98 @@ function readJsonFile(filePath) {
     } catch (err) {
         log(`讀取 JSON 失敗: ${filePath} - ${err.message}`, 'error');
         return null;
+    }
+}
+
+/**
+ * 寫入 JSON 檔案
+ */
+function writeJsonFile(filePath, data) {
+    try {
+        const content = JSON.stringify(data, null, 2);
+        fs.writeFileSync(filePath, content, 'utf-8');
+        return true;
+    } catch (err) {
+        log(`寫入 JSON 失敗: ${filePath} - ${err.message}`, 'error');
+        return false;
+    }
+}
+
+/**
+ * 讀取匯入索引
+ */
+function loadImportsIndex() {
+    if (fs.existsSync(CONFIG.INDEX_FILE_PATH)) {
+        const data = readJsonFile(CONFIG.INDEX_FILE_PATH);
+        if (data && data.imports) {
+            return data;
+        }
+    }
+    // 初始化新索引
+    return {
+        webBaseUrl: CONFIG.WEB_BASE_URL,
+        lastUpdated: new Date().toISOString(),
+        imports: {}
+    };
+}
+
+/**
+ * 儲存匯入索引
+ */
+function saveImportsIndex(indexData) {
+    indexData.lastUpdated = new Date().toISOString();
+    return writeJsonFile(CONFIG.INDEX_FILE_PATH, indexData);
+}
+
+/**
+ * 新增項目到索引
+ * @param {string} folderName - 資料夾名稱 (作為 key)
+ * @param {string} eagleItemId - Eagle item ID
+ * @param {string} eagleFilePath - Eagle 中的完整檔案路徑
+ * @param {object} metadata - 原始 metadata
+ */
+function addToImportsIndex(folderName, eagleItemId, eagleFilePath, metadata = {}) {
+    try {
+        const indexData = loadImportsIndex();
+        const libraryPath = eagle.library.path;
+        const imagesPath = path.join(libraryPath, 'images');
+        
+        // 計算相對於 images 資料夾的路徑
+        let relativePath = eagleFilePath;
+        if (eagleFilePath.startsWith(imagesPath)) {
+            relativePath = eagleFilePath.substring(imagesPath.length);
+        }
+        // 轉換為 URL 格式 (使用正斜線)
+        relativePath = relativePath.replace(/\\/g, '/');
+        if (relativePath.startsWith('/')) {
+            relativePath = relativePath.substring(1);
+        }
+        
+        // URL 編碼 (處理中日文檔名)
+        const encodedPath = relativePath.split('/').map(segment => encodeURIComponent(segment)).join('/');
+        const webUrl = `${CONFIG.WEB_BASE_URL}/${encodedPath}`;
+        
+        // 儲存到索引
+        indexData.imports[folderName] = {
+            eagleItemId: eagleItemId,
+            eaglePath: relativePath,
+            webUrl: webUrl,
+            nhentaiId: metadata.nhentaiId || null,
+            nhentaiUrl: metadata.url || null,
+            title: metadata.name || folderName,
+            tags: metadata.tags || [],
+            importedAt: new Date().toISOString()
+        };
+        
+        if (saveImportsIndex(indexData)) {
+            log(`已更新索引: ${folderName}`, 'success');
+            log(`Web URL: ${webUrl}`, 'info');
+            return true;
+        }
+        return false;
+    } catch (err) {
+        log(`更新索引失敗: ${err.message}`, 'error');
+        return false;
     }
 }
 
@@ -335,6 +434,9 @@ async function processComicFolder(folderPath, folderName) {
                     if (item) {
                         await item.refreshThumbnail();
                         log(`已刷新縮圖: ${pdfFile}`, 'info');
+                        
+                        // 儲存到匯入索引 (供 Discord Bot 使用)
+                        addToImportsIndex(folderName, itemId, item.filePath, metadata);
                     }
                 } catch (refreshErr) {
                     log(`刷新縮圖失敗: ${refreshErr.message}`, 'warn');

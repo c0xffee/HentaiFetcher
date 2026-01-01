@@ -1552,6 +1552,9 @@ class DownloadProcessor:
                 extra_info=extra_info
             )
             
+            # 確保輸出目錄存在（防止 UNC 路徑問題）
+            self.output_path.mkdir(parents=True, exist_ok=True)
+            
             metadata_path = self.output_path / "metadata.json"
             with open(metadata_path, 'w', encoding='utf-8') as f:
                 json.dump(eagle_metadata, f, ensure_ascii=False, indent=2)

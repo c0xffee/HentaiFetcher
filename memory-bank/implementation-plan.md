@@ -8,8 +8,9 @@
 ## ✅ Phase 0: Documentation (文件建立)
 - [x] Step 0.1: 建立 Vibe Coding 文件架構
 - [x] Step 0.2: 建立 Memory Bank 資料夾與模板
-- [ ] Step 0.3: 進行顧問式訪談，收斂需求
-- [ ] Step 0.4: 完善所有 Memory Bank 文件
+- [x] Step 0.3: 加強自動更新規則 (Auto-Update Protocol)
+- [ ] Step 0.4: 進行顧問式訪談，收斂需求
+- [ ] Step 0.5: 完善所有 Memory Bank 文件
 
 ---
 

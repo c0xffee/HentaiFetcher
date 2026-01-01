@@ -1,7 +1,7 @@
 # Active Context
 
 ## Current Focus (目前焦點)
-- 正在執行的任務：建立 Memory Bank 文件結構，準備進行顧問式訪談
+- 正在執行的任務：加強自動更新規則，確保 AI 自動更新 Memory Bank + Git
 
 ## Recent Changes (最近更動)
 - [x] 2026-01-02 建立 Vibe Coding 文件架構
@@ -9,12 +9,15 @@
   - 建立 `raw-context.md`
   - 建立 `project-brief.md`
   - 建立 `memory-bank/` 資料夾及 5 個標準檔案
+- [x] 2026-01-02 加強自動更新規則
+  - 新增 `MANDATORY AUTO-UPDATE PROTOCOL` 到 copilot-instructions.md
+  - 強化 systemPatterns.md 的 AI 行為準則
+  - AI 現在必須自動更新 Memory Bank + Git Commit
 
 ## Next Steps (下一步)
 - [ ] 進行顧問式訪談，收斂需求
 - [ ] 完善 productContext.md 的功能範疇
 - [ ] 確認 Anti-Scope (不做什麼)
-- [ ] 制定 implementation-plan.md 的開發階段
 
 ## Open Questions (待解決問題)
 - [ ] 是否有新功能需求？

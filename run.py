@@ -2001,7 +2001,31 @@ class HentaiFetcherBot(commands.Bot):
         
         # ===== 專用頻道模式：不需要 !dl 前綴 =====
         if is_dedicated_channel and not content.startswith('!'):
-            # 在專用頻道中，任何看起來像 URL 或數字的訊息都嘗試處理
+            # 檢查是否為已知的指令 (不需要 ! 前綴的版本)
+            known_commands = [
+                'search', 's', 'find',           # 搜尋
+                'read', 'open', 'pdf',           # 閱讀
+                'eagle', 'lib', 'library',       # 統計
+                'queue', 'q',                    # 佇列
+                'status',                        # 狀態
+                'list', 'ls',                    # 列表
+                'random', 'rand', 'r',           # 隨機
+                'fixcover', 'fc', 'addcover',    # 封面
+                'cleanup', 'clean', 'dedup',     # 清理
+                'ping', 'version', 'v', 'ver',   # 系統
+                'help', 'h',                     # 說明
+                'test',                          # 測試
+            ]
+            
+            first_word = content.split()[0].lower() if content else ''
+            
+            if first_word in known_commands:
+                # 是指令，轉換為 !指令 格式讓 commands 框架處理
+                message.content = '!' + content
+                await self.process_commands(message)
+                return
+            
+            # 不是指令，當作下載請求處理
             await self.handle_direct_download(message, content)
             return
         

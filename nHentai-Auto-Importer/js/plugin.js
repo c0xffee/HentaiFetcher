@@ -246,39 +246,19 @@ function extractNhentaiId(metadata) {
  * 新增項目到索引
  * @param {string} folderName - 資料夾名稱 (作為 key)
  * @param {string} eagleItemId - Eagle item ID
- * @param {string} eagleFilePath - Eagle 中的完整檔案路徑
+ * @param {string} eagleFilePath - Eagle 中的完整檔案路徑 (僅用於日誌)
  * @param {object} metadata - 原始 metadata
  */
 function addToImportsIndex(folderName, eagleItemId, eagleFilePath, metadata = {}) {
     try {
         const indexData = loadImportsIndex();
-        const libraryPath = eagle.library.path;
-        const imagesPath = path.join(libraryPath, 'images');
-        
-        // 計算相對於 images 資料夾的路徑
-        let relativePath = eagleFilePath;
-        if (eagleFilePath.startsWith(imagesPath)) {
-            relativePath = eagleFilePath.substring(imagesPath.length);
-        }
-        // 轉換為 URL 格式 (使用正斜線)
-        relativePath = relativePath.replace(/\\/g, '/');
-        if (relativePath.startsWith('/')) {
-            relativePath = relativePath.substring(1);
-        }
-        
-        // URL 編碼 (處理中日文檔名)
-        const encodedPath = relativePath.split('/').map(segment => encodeURIComponent(segment)).join('/');
-        // 使用 8889 端口 (Eagle Library images 資料夾)
-        const webUrl = `${CONFIG.WEB_BASE_URL_EAGLE}/${encodedPath}`;
         
         // 提取 nhentai ID
         const nhentaiId = extractNhentaiId(metadata);
         
-        // 儲存到索引
+        // 簡化索引結構 - Bot 會自己去 Eagle Library 查找實際檔案
         indexData.imports[folderName] = {
             eagleItemId: eagleItemId,
-            eaglePath: relativePath,
-            webUrl: webUrl,
             nhentaiId: nhentaiId,
             nhentaiUrl: metadata.url || null,
             title: metadata.name || folderName,
@@ -288,7 +268,10 @@ function addToImportsIndex(folderName, eagleItemId, eagleFilePath, metadata = {}
         
         if (saveImportsIndex(indexData)) {
             log(`已更新索引: ${folderName}`, 'success');
-            log(`Web URL: ${webUrl}`, 'info');
+            log(`Eagle Item ID: ${eagleItemId}`, 'info');
+            if (nhentaiId) {
+                log(`nhentai ID: ${nhentaiId}`, 'info');
+            }
             return true;
         }
         return false;

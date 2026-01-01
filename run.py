@@ -1223,12 +1223,22 @@ class DownloadProcessor:
                 resolution=100.0
             )
             
-            # 清理記憶體
+            # 清理記憶體 - 使用 set 追蹤已關閉的圖片 id，避免比較操作
+            closed_ids = set()
             for img in pil_images:
-                img.close()
+                if id(img) not in closed_ids:
+                    try:
+                        img.close()
+                    except Exception:
+                        pass
+                    closed_ids.add(id(img))
             for img in resized_images:
-                if img not in pil_images:  # 避免重複 close
-                    img.close()
+                if id(img) not in closed_ids:
+                    try:
+                        img.close()
+                    except Exception:
+                        pass
+                    closed_ids.add(id(img))
             
             self.pdf_progress = 100
             self.pdf_converting = False

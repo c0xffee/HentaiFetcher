@@ -34,8 +34,11 @@ const CONFIG = {
     DEBUG: true,
     
     // ==================== Web URL 索引設定 ====================
-    // Synology Web Station 基礎 URL (指向 Eagle Library 的 images 資料夾)
-    WEB_BASE_URL: 'http://192.168.0.32:8888',
+    // Synology Web Station 端點:
+    // - 8888: downloads 資料夾 (匯入前)
+    // - 8889: Eagle Library images 資料夾 (匯入後)
+    WEB_BASE_URL_DOWNLOADS: 'http://192.168.10.2:8888',
+    WEB_BASE_URL_EAGLE: 'http://192.168.10.2:8889',
     
     // 匯入索引檔案路徑 (供 Discord Bot 讀取)
     INDEX_FILE_PATH: 'Z:\\HentaiFetcher\\imports-index.json'
@@ -205,7 +208,8 @@ function loadImportsIndex() {
     }
     // 初始化新索引
     return {
-        webBaseUrl: CONFIG.WEB_BASE_URL,
+        webBaseUrlDownloads: CONFIG.WEB_BASE_URL_DOWNLOADS,
+        webBaseUrlEagle: CONFIG.WEB_BASE_URL_EAGLE,
         lastUpdated: new Date().toISOString(),
         imports: {}
     };
@@ -245,7 +249,8 @@ function addToImportsIndex(folderName, eagleItemId, eagleFilePath, metadata = {}
         
         // URL 編碼 (處理中日文檔名)
         const encodedPath = relativePath.split('/').map(segment => encodeURIComponent(segment)).join('/');
-        const webUrl = `${CONFIG.WEB_BASE_URL}/${encodedPath}`;
+        // 使用 8889 端口 (Eagle Library images 資料夾)
+        const webUrl = `${CONFIG.WEB_BASE_URL_EAGLE}/${encodedPath}`;
         
         // 儲存到索引
         indexData.imports[folderName] = {

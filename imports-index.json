@@ -1,8 +1,38 @@
 {
   "webBaseUrlDownloads": "http://192.168.10.2:8888",
   "webBaseUrlEagle": "http://192.168.10.2:8889",
-  "lastUpdated": "2026-01-02T07:18:28.086507Z",
+  "lastUpdated": "2026-01-02T07:52:48.506540Z",
   "imports": {
+    "547997": {
+      "eagleItemId": "MJW3NIYB71YA9",
+      "nhentaiId": "547997",
+      "nhentaiUrl": "https://nhentai.net/g/547997/",
+      "title": "[角砂糖 (よろず)] ゼンゼロイチャラブエロ合同「ゼンエロ」 (ゼンレスゾーンゼロ) [中国翻訳] [DL版]",
+      "tags": [
+        "artist:kurikara",
+        "artist:kazutaro",
+        "artist:marugoshi",
+        "artist:mame denkyuu",
+        "artist:kujiran",
+        "artist:nakamura regura",
+        "artist:92m",
+        "artist:migihaji",
+        "artist:homina mia",
+        "group:kakuzatou",
+        "parody:zenless zone zero",
+        "character:belle",
+        "character:nicole demara",
+        "character:ellen joe",
+        "character:wise",
+        "character:alexandrina sebastiane",
+        "character:caesar king",
+        "character:grace howard",
+        "language:Chinese",
+        "goudoushi",
+        "type:doujinshi"
+      ],
+      "importedAt": "2026-01-01T23:52:11.067Z"
+    },
     "(C88) [Number2 (たくじ)] この、卑怯ものっ!! [中国翻訳]": {
       "eagleItemId": "MJW11F302B3VB",
       "nhentaiId": "144257",
@@ -613,6 +643,22 @@
         "type:doujinshi"
       ],
       "importedAt": 1767309465148
+    },
+    "MJW3FT5F8PXK0": {
+      "eagleItemId": "MJW3FT5F8PXK0",
+      "nhentaiId": null,
+      "nhentaiUrl": null,
+      "title": "MJW3FT5F8PXK0",
+      "tags": [],
+      "importedAt": 1767311168596
+    },
+    "MJW3NCH0DGAXQ": {
+      "eagleItemId": "MJW3NCH0DGAXQ",
+      "nhentaiId": null,
+      "nhentaiUrl": null,
+      "title": "MJW3NCH0DGAXQ",
+      "tags": [],
+      "importedAt": 1767311520340
     }
   }
 }

@@ -227,6 +227,9 @@ function saveImportsIndex(indexData) {
  * 從 URL 或 annotation 中提取 nhentai ID
  */
 function extractNhentaiId(metadata) {
+    // 空值檢查
+    if (!metadata) return null;
+    
     // 優先從 URL 提取: https://nhentai.net/g/123456/
     if (metadata.url) {
         const urlMatch = metadata.url.match(/nhentai\.net\/g\/(\d+)/);

@@ -3131,13 +3131,13 @@ async def help_command(ctx):
         )
         
         embed.add_field(
-            name="� !reindex",
+            name="🔄 !reindex",
             value="重建索引",
             inline=True
         )
         
         embed.add_field(
-            name="�🖼️ !fixcover",
+            name="🖼️ !fixcover",
             value="補充封面圖片",
             inline=True
         )

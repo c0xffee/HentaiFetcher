@@ -224,6 +224,25 @@ function saveImportsIndex(indexData) {
 }
 
 /**
+ * 從 URL 或 annotation 中提取 nhentai ID
+ */
+function extractNhentaiId(metadata) {
+    // 優先從 URL 提取: https://nhentai.net/g/123456/
+    if (metadata.url) {
+        const urlMatch = metadata.url.match(/nhentai\.net\/g\/(\d+)/);
+        if (urlMatch) return urlMatch[1];
+    }
+    
+    // 從 annotation 中提取: 📔 ID: 123456
+    if (metadata.annotation) {
+        const annotationMatch = metadata.annotation.match(/📔 ID: (\d+)/);
+        if (annotationMatch) return annotationMatch[1];
+    }
+    
+    return null;
+}
+
+/**
  * 新增項目到索引
  * @param {string} folderName - 資料夾名稱 (作為 key)
  * @param {string} eagleItemId - Eagle item ID
@@ -252,12 +271,15 @@ function addToImportsIndex(folderName, eagleItemId, eagleFilePath, metadata = {}
         // 使用 8889 端口 (Eagle Library images 資料夾)
         const webUrl = `${CONFIG.WEB_BASE_URL_EAGLE}/${encodedPath}`;
         
+        // 提取 nhentai ID
+        const nhentaiId = extractNhentaiId(metadata);
+        
         // 儲存到索引
         indexData.imports[folderName] = {
             eagleItemId: eagleItemId,
             eaglePath: relativePath,
             webUrl: webUrl,
-            nhentaiId: metadata.nhentaiId || null,
+            nhentaiId: nhentaiId,
             nhentaiUrl: metadata.url || null,
             title: metadata.name || folderName,
             tags: metadata.tags || [],

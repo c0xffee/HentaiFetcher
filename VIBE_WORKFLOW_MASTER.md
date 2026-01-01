@@ -55,6 +55,40 @@
 6. **主動版控 (Auto Git)**：每當完成一個邏輯段落的代碼修改後，必須執行 Git 存檔。若具備 Terminal 權限 (Agent Mode)，請自動執行 `git add .` 與 `git commit`；若無權限，請生成完整的 Git 指令供使用者複製執行。
 7. **自主回朔授權 (Self-Correction)**：若你在 Feature Branch 上發現新生成的代碼導致嚴重錯誤或編譯失敗，**授權你自動執行** `git reset --hard HEAD~1` 回到上一個存檔點，並嘗試另一種寫法。這不需要經過使用者確認，但必須在執行後告知使用者「已回朔並重試」。
 
+# 📝 MANDATORY AUTO-UPDATE PROTOCOL (強制自動更新協議)
+**每次完成功能開發後，AI 必須自動執行以下步驟，無需使用者提醒：**
+
+## Step 1: 更新 Memory Bank (必做)
+完成程式碼修改後，**立即**更新以下檔案：
+
+| 檔案 | 更新內容 |
+|------|----------|
+| `memory-bank/activeContext.md` | 更新 "Recent Changes" 區塊，記錄本次修改 |
+| `memory-bank/implementation-plan.md` | 將已完成的步驟打勾 `[x]`，更新 Changelog |
+| `memory-bank/productContext.md` | 若新增功能，更新 "Success Metrics" 清單 |
+| `memory-bank/techContext.md` | 若新增依賴或技術，更新相關區塊 |
+| `memory-bank/systemPatterns.md` | 若修改架構或新增指令，更新相關區塊 |
+
+## Step 2: Git Atomic Commit (必做)
+更新完 Memory Bank 後，**立即**執行：
+```bash
+git add .
+git commit -m "<type>: <description>"
+```
+
+Commit 類型：
+- `feat:` 新功能
+- `fix:` 修復
+- `docs:` 文件更新
+- `refactor:` 重構
+- `test:` 測試
+
+## Step 3: 告知使用者 (必做)
+每次完成上述步驟後，簡短告知使用者：
+> ✅ 已更新 Memory Bank 並提交 Git。
+
+# ⚠️ 違規處理
+若 AI 完成功能但未執行上述步驟，視為**未完成任務**。
 
 ```
 
@@ -199,9 +233,17 @@
 
 ## 🚨 TOOL USAGE RULES (AI 行為準則)
 1. **Read-First**: Coding 前務必讀取 `activeContext.md`。
-2. **Update-After**: 每次完成步驟後，更新 `implementation-plan.md` 的狀態。
+2. **Update-After**: 每次完成步驟後，**必須自動**更新以下檔案：
+   - `activeContext.md` - Recent Changes 區塊
+   - `implementation-plan.md` - 勾選已完成步驟 + Changelog
+   - 其他相關文件（若有變更）
 3. **No-Silent-Changes**: 禁止擅自更改技術棧，必須先更新文件。
-4. **Git-Atomic-Commit**: 每次完成一個原子修改 (Atomic Change) 後，必須自動執行 Git Commit。
+4. **Git-Atomic-Commit**: 每次完成一個原子修改 (Atomic Change) 後，**必須自動**執行：
+   ```bash
+   git add .
+   git commit -m "<type>: <description>"
+   ```
+5. **Completion-Notification**: 完成上述步驟後，告知使用者：「✅ 已更新 Memory Bank 並提交 Git。」
 
 ## Architecture (系統架構)
 - **Frontend**: ...

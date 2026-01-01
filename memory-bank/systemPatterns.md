@@ -2,9 +2,17 @@
 
 ## 🚨 TOOL USAGE RULES (AI 行為準則)
 1. **Read-First**: Coding 前務必讀取 `activeContext.md`。
-2. **Update-After**: 每次完成步驟後，更新 `implementation-plan.md` 的狀態。
+2. **Update-After**: 每次完成步驟後，**必須自動**更新以下檔案：
+   - `activeContext.md` - Recent Changes 區塊
+   - `implementation-plan.md` - 勾選已完成步驟 + Changelog
+   - 其他相關文件（若有變更）
 3. **No-Silent-Changes**: 禁止擅自更改技術棧，必須先更新文件。
-4. **Git-Atomic-Commit**: 每次完成一個原子修改 (Atomic Change) 後，必須自動執行 Git Commit。
+4. **Git-Atomic-Commit**: 每次完成一個原子修改 (Atomic Change) 後，**必須自動**執行：
+   ```bash
+   git add .
+   git commit -m "<type>: <description>"
+   ```
+5. **Completion Notification**: 完成上述步驟後，告知使用者：「✅ 已更新 Memory Bank 並提交 Git。」
 
 ## Architecture (系統架構)
 

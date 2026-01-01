@@ -2389,7 +2389,7 @@ async def status_command(ctx):
     await ctx.send(embed=embed)
 
 
-@bot.command(name='list', aliases=['ls', 'library'])
+@bot.command(name='list', aliases=['ls'])
 async def list_command(ctx):
     """列出所有已下載的本子：!list"""
     try:

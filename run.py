@@ -1326,19 +1326,29 @@ class DownloadProcessor:
             
             # 階段 3: 儲存為 PDF (70-100%)
             logger.info("階段 3/3: 生成 PDF...")
+            logger.info(f"PDF 輸出路徑: {output_pdf}")
+            logger.info(f"路徑長度: {len(str(output_pdf))} 字元")
             self.pdf_progress = 75
             
             # 第一張圖片作為基底，其餘 append
             first_image = resized_images[0]
             rest_images = resized_images[1:] if len(resized_images) > 1 else []
             
-            first_image.save(
-                output_pdf,
-                "PDF",
-                save_all=True,
-                append_images=rest_images,
-                resolution=100.0
-            )
+            try:
+                first_image.save(
+                    output_pdf,
+                    "PDF",
+                    save_all=True,
+                    append_images=rest_images,
+                    resolution=100.0
+                )
+                logger.info("PDF save 呼叫完成")
+            except Exception as save_error:
+                logger.error(f"PDF save 失敗: {save_error}")
+                import traceback
+                logger.error(traceback.format_exc())
+                self.pdf_converting = False
+                return False
             
             # 清理記憶體 - 使用 set 追蹤已關閉的圖片 id，避免比較操作
             closed_ids = set()
@@ -1434,29 +1444,35 @@ class DownloadProcessor:
             else:
                 title = None
             
-            if not title:
-                # 嘗試從 URL 提取 ID 作為標題
+            # 提取 gallery_id 用於目錄和檔名（避免路徑過長）
+            gallery_id_for_path = metadata.get('gallery_id', '') if metadata else ''
+            if not gallery_id_for_path:
+                # 嘗試從 URL 提取
                 match = re.search(r'/g/(\d+)', self.url)
                 if match:
-                    title = f"Gallery_{match.group(1)}"
+                    gallery_id_for_path = match.group(1)
                 else:
-                    title = f"Download_{int(time.time())}"
+                    gallery_id_for_path = str(int(time.time()))
+            
+            if not title:
+                title = f"Gallery_{gallery_id_for_path}"
             
             safe_title = sanitize_filename(title)
             logger.info(f"使用標題: {safe_title}")
+            logger.info(f"使用 Gallery ID 作為目錄名: {gallery_id_for_path}")
             
-            # 建立輸出資料夾
-            self.output_path = DOWNLOAD_DIR / safe_title
+            # 建立輸出資料夾 - 使用 gallery_id 避免路徑過長
+            self.output_path = DOWNLOAD_DIR / gallery_id_for_path
             
             # 如果資料夾已存在，使用時間戳命名避免覆蓋
             if self.output_path.exists():
-                self.output_path = DOWNLOAD_DIR / f"{safe_title}_{int(time.time())}"
+                self.output_path = DOWNLOAD_DIR / f"{gallery_id_for_path}_{int(time.time())}"
                 logger.info(f"資料夾已存在，使用新資料夾 {self.output_path}")
             
             self.output_path.mkdir(parents=True, exist_ok=True)
             
-            # 步驟 3: 轉換為 PDF
-            pdf_path = self.output_path / f"{safe_title}.pdf"
+            # 步驟 3: 轉換為 PDF - 使用 gallery_id 作為檔名
+            pdf_path = self.output_path / f"{gallery_id_for_path}.pdf"
             if not self.convert_to_pdf(images, pdf_path):
                 return False, "❌ PDF 轉換失敗"
             
@@ -1545,7 +1561,7 @@ class DownloadProcessor:
             # 生成 PDF Web 連結 - 使用實際資料夾名稱（可能有時間戳後綴）
             from urllib.parse import quote
             folder_name = self.output_path.name  # 使用實際資料夾名稱
-            pdf_filename = f"{safe_title}.pdf"
+            pdf_filename = f"{gallery_id_for_path}.pdf"
             pdf_web_url = f"{PDF_WEB_BASE_URL}/{quote(folder_name)}/{quote(pdf_filename)}"
             
             # 使用純 URL 顯示（避免 markdown 連結被編碼的括號破壞）

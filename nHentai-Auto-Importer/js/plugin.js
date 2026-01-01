@@ -502,10 +502,22 @@ async function processComicFolder(folderPath, folderName) {
     
     // 5. 歸檔 - 移動整個資料夾
     const destPath = path.join(CONFIG.IMPORTED_PATH, folderName);
+    
+    // 檢查是否已歸檔 (來源不存在但目標存在)
+    if (!fs.existsSync(folderPath) && fs.existsSync(destPath)) {
+        log(`已歸檔 (先前完成): ${folderName}`, 'info');
+        return true;
+    }
+    
     if (moveFolder(folderPath, destPath)) {
         log(`已歸檔: ${folderName}`, 'success');
         return true;
     } else {
+        // 再次檢查 - 也許在 moveFolder 過程中已歸檔
+        if (fs.existsSync(destPath)) {
+            log(`已歸檔 (非同步完成): ${folderName}`, 'info');
+            return true;
+        }
         log(`歸檔失敗: ${folderName}`, 'error');
         return false;
     }

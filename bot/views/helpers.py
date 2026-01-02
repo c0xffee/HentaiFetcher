@@ -215,14 +215,16 @@ async def show_item_detail(
             char_display += f" (+{len(characters)-5})"
         msg_lines.append(f"👤 角色: {char_display}")
     
-    # 檔案資訊
-    info_parts = []
+    # 檔案資訊 (換行顯示)
     if page_count > 0:
-        info_parts.append(f"📄 {page_count} 頁")
+        msg_lines.append(f"📄 頁數: {page_count} 頁")
     if file_size_str:
-        info_parts.append(f"💾 {file_size_str}")
-    if info_parts:
-        msg_lines.append(" | ".join(info_parts))
+        msg_lines.append(f"💾 大小: {file_size_str}")
+    
+    # 收藏數
+    favorites = result.get('favorites', 0)
+    if favorites and favorites > 0:
+        msg_lines.append(f"❤️ 收藏: {favorites:,}")
     
     # 標籤顯示 (反引號包裹，逗號分隔)
     if other_tags:

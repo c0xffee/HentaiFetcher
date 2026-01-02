@@ -1,9 +1,15 @@
 # Active Context
 
 ## Current Focus (目前焦點)
-- ✅ Discord UI 元件整合 v3.3.5 - 多項修復與增強
+- ✅ Discord UI 元件整合 v3.3.6 - Bug 修復與增強
 
 ## Recent Changes (最近更動)
+- [x] 2026-01-03 v3.3.6 Bug 修復
+  - **新增 `EagleLibrary.get_all_items()`**: 修復隨機按鈕「沒有可抽選的作品」問題
+  - **取消下載錯誤訊息增強**: 顯示 debug 資訊（當前註冊的下載 ID）
+  - **`/cleanup` 改用按鈕確認**: 新增 CleanupConfirmView，取代文字輸入
+  - **cleanup 說明更清晰**: 明確說明「只刪除已導入 Eagle 的項目」
+  - **版本號更新至 3.3.6**
 - [x] 2026-01-03 多項修復與增強 (v3.3.5)
   - **ReadDetailView 同角色按鈕**: 新增 CharacterSearchButton 搜尋同角色作品
   - **修復 random_view ImportError**: 改用正確的 EagleLibrary + get_all_downloads_items

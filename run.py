@@ -2055,180 +2055,64 @@ class HentaiFetcherBot(commands.Bot):
             print(f"[DEBUG] 收到訊息 (ID:{message.id}): {repr(content[:100])}", flush=True)
         
         # ===== 專用頻道模式：不需要 !dl 前綴 =====
-        if is_dedicated_channel and not content.startswith('!'):
-            # 檢查是否為已知的指令 (不需要 ! 前綴的版本)
-            known_commands = [
-                'search', 's', 'find',           # 搜尋
-                'read', 'open', 'pdf',           # 閱讀
-                'eagle', 'lib', 'library',       # 統計
-                'reindex', 'rebuild', 'sync',    # 重建索引
-                'queue', 'q',                    # 佇列
-                'status',                        # 狀態
-                'list', 'ls',                    # 列表
-                'random', 'rand', 'r',           # 隨機
-                'fixcover', 'fc', 'addcover',    # 封面
-                'cleanup', 'clean', 'dedup',     # 清理
-                'ping', 'version', 'v', 'ver',   # 系統
-                'help', 'h',                     # 說明
-                'test',                          # 測試
-            ]
-            
-            first_word = content.split()[0].lower() if content else ''
-            
-            if first_word in known_commands:
-                # 是指令，轉換為 !指令 格式讓 commands 框架處理
-                message.content = '!' + content
-                await self.process_commands(message)
+        if is_dedicated_channel:
+            # 忽略斜線指令（由 Discord 處理）
+            if content.startswith('/'):
                 return
             
-            # 不是指令，當作下載請求處理
+            # 忽略 ! 前綴（舊指令格式，提示用戶使用斜線指令）
+            if content.startswith('!'):
+                await message.channel.send("💡 請使用斜線指令，例如：`/help`、`/search`")
+                return
+            
+            # test 模式 - 強制重新下載
+            content_lower = content.lower().strip()
+            if content_lower.startswith('test ') or content_lower == 'test':
+                test_content = content[4:].strip() if len(content) > 4 else ''
+                if not test_content:
+                    await message.channel.send(
+                        "🧪 **Test 模式使用方式（強制重新下載）**\n"
+                        "```\n"
+                        "test 421633\n"
+                        "```\n"
+                        "⚠️ 此模式會跳過重複檢查"
+                    )
+                    return
+                
+                # 解析 test 內容
+                test_urls = parse_input_to_urls(test_content)
+                if not test_urls:
+                    await message.channel.send(f"⚠️ 無法解析: `{test_content[:50]}`")
+                    return
+                
+                # 加入佇列（test 模式）
+                queue_size = download_queue.qsize() + len(test_urls)
+                gallery_ids = []
+                for url in test_urls:
+                    match = re.search(r'/g/(\d+)', url)
+                    if match:
+                        gallery_ids.append(match.group(1))
+                
+                if len(test_urls) == 1 and gallery_ids:
+                    await message.channel.send(f"🧪 **#{gallery_ids[0]}** 已加入佇列（Test 模式）\n📊 佇列: {queue_size}")
+                else:
+                    id_list = ", ".join([f"`{gid}`" for gid in gallery_ids[:10]])
+                    await message.channel.send(f"🧪 **{len(gallery_ids)}** 個已加入佇列（Test 模式）\n🔢 {id_list}\n📊 佇列: {queue_size}")
+                
+                for url in test_urls:
+                    download_queue.put((url, message.channel.id, None, True))
+                
+                logger.info(f"[專用頻道] 新增 {len(test_urls)} 個 TEST 下載任務 (來自: {message.author})")
+                return
+            
+            # 處理下載請求（直接貼號碼或網址）
             await self.handle_direct_download(message, content)
             return
         
-        # ===== 傳統模式：處理 !dl 指令（支援多行）=====
-        if content.startswith('!dl'):
-            # 強制輸出 debug 訊息
-            print(f"[DEBUG] !dl 指令偵測到!", flush=True)
-            print(f"[DEBUG] 完整內容長度: {len(content)}", flush=True)
-            print(f"[DEBUG] 完整內容: {repr(content)}", flush=True)
-            logger.info(f"收到 !dl 指令，完整內容: {repr(content)}")
-            
-            # 提取 !dl 之後的所有內容（包括換行）
-            urls_text = content[3:].strip()  # 移除 "!dl" 前綴
-            
-            print(f"[DEBUG] 解析文字: {repr(urls_text)}", flush=True)
-            logger.info(f"解析文字: {repr(urls_text)}")
-            
-            if not urls_text:
-                await message.channel.send(
-                    "📖 **!dl 使用方式**\n"
-                    "```\n"
-                    "!dl 421633\n"
-                    "!dl 421633 607769 613358\n"
-                    "!dl https://nhentai.net/g/421633/\n"
-                    "```\n"
-                    "也可以直接貼多行：\n"
-                    "```\n"
-                    "!dl 421633\n"
-                    "607769\n"
-                    "613358\n"
-                    "```"
-                )
-                return
-            
-            # 解析所有網址
-            parsed_urls = parse_input_to_urls(urls_text)
-            
-            print(f"[DEBUG] 解析結果數量: {len(parsed_urls)}", flush=True)
-            print(f"[DEBUG] 解析結果: {parsed_urls}", flush=True)
-            logger.info(f"解析結果: {parsed_urls}")
-            
-            if not parsed_urls:
-                await message.channel.send("⚠️ 無法解析輸入。請提供有效的網址或 nhentai 號碼。")
-                return
-            
-            # 提取所有 gallery ID 並檢查重複
-            new_urls = []
-            already_exists = []
-            
-            for url in parsed_urls:
-                match = re.search(r'/g/(\d+)', url)
-                if match:
-                    gallery_id = match.group(1)
-                    # 檢查是否已下載
-                    exists, info = check_already_downloaded(gallery_id)
-                    if exists:
-                        already_exists.append((gallery_id, info))
-                    else:
-                        new_urls.append((url, gallery_id))
-                else:
-                    new_urls.append((url, None))
-            
-            # 回報已存在的項目
-            if already_exists:
-                if len(already_exists) == 1:
-                    gid, info = already_exists[0]
-                    title = info.get('title', '')[:40]
-                    web_url = info.get('web_url', '')
-                    await message.channel.send(f"📚 **#{gid}** 已存在\n📖 {title}\n🔗 {web_url}")
-                else:
-                    exist_list = "\n".join([f"• `{gid}`: {info.get('title', '')[:30]}" for gid, info in already_exists[:5]])
-                    await message.channel.send(f"📚 **{len(already_exists)}** 個已存在（跳過）:\n{exist_list}")
-            
-            # 如果沒有新的要下載
-            if not new_urls:
-                return
-            
-            # 發送狀態訊息（簡化版，只顯示號碼）
-            queue_size = download_queue.qsize() + len(new_urls)
-            gallery_ids = [gid for _, gid in new_urls if gid]
-            
-            if len(new_urls) == 1 and gallery_ids:
-                await message.channel.send(f"📥 **#{gallery_ids[0]}** 已加入佇列\n📊 佇列: {queue_size}")
-            elif len(gallery_ids) <= 15:
-                id_list = ", ".join([f"`{gid}`" for gid in gallery_ids])
-                await message.channel.send(f"📥 **{len(gallery_ids)}** 個已加入佇列\n🔢 {id_list}\n📊 佇列: {queue_size}")
-            else:
-                await message.channel.send(f"📥 **{len(new_urls)}** 個已加入佇列\n📊 佇列: {queue_size}")
-            
-            # 加入佇列（不再傳遞 status_msg_id，因為 loading emoji 改在開始下載時顯示）
-            for url, _ in new_urls:
-                download_queue.put((url, message.channel.id, None))
-            
-            logger.info(f"新增 {len(new_urls)} 個下載任務 (來自: {message.author})")
+        # ===== 非專用頻道：提示使用斜線指令 =====
+        if content.startswith('!'):
+            await message.channel.send("💡 請使用斜線指令，例如：`/dl`、`/help`、`/search`")
             return
-        
-        # ===== 處理 !test 指令（強制重新下載，跳過重複檢查）=====
-        if content.startswith('!test'):
-            print(f"[DEBUG] !test 指令偵測到!", flush=True)
-            logger.info(f"收到 !test 指令，完整內容: {repr(content)}")
-            
-            # 提取 !test 之後的所有內容
-            urls_text = content[5:].strip()  # 移除 "!test" 前綴
-            
-            if not urls_text:
-                await message.channel.send(
-                    "🧪 **!test 使用方式（強制重新下載）**\n"
-                    "```\n"
-                    "!test 421633\n"
-                    "!test https://nhentai.net/g/421633/\n"
-                    "```\n"
-                    "⚠️ 此模式會跳過重複檢查，即使已下載過也會重新下載"
-                )
-                return
-            
-            # 解析所有網址
-            parsed_urls = parse_input_to_urls(urls_text)
-            
-            if not parsed_urls:
-                await message.channel.send("⚠️ 無法解析輸入。請提供有效的網址或 nhentai 號碼。")
-                return
-            
-            # 發送狀態訊息
-            queue_size = download_queue.qsize() + len(parsed_urls)
-            
-            # 提取所有 gallery ID
-            gallery_ids = []
-            for url in parsed_urls:
-                match = re.search(r'/g/(\d+)', url)
-                if match:
-                    gallery_ids.append(match.group(1))
-            
-            if len(parsed_urls) == 1 and gallery_ids:
-                await message.channel.send(f"🧪 **#{gallery_ids[0]}** 已加入佇列（Test 模式）\n📊 佇列: {queue_size}")
-            else:
-                id_list = ", ".join([f"`{gid}`" for gid in gallery_ids[:10]])
-                await message.channel.send(f"🧪 **{len(gallery_ids)}** 個已加入佇列（Test 模式）\n🔢 {id_list}\n📊 佇列: {queue_size}")
-            
-            # 加入佇列（第4個參數 True 表示 test_mode）
-            for url in parsed_urls:
-                download_queue.put((url, message.channel.id, None, True))
-            
-            logger.info(f"新增 {len(parsed_urls)} 個 TEST 下載任務 (來自: {message.author})")
-            return
-        
-        # 處理其他指令
-        await self.process_commands(message)
     
     async def handle_direct_download(self, message, content: str):
         """

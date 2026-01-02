@@ -189,15 +189,9 @@ async def show_item_detail(
     source_emoji = "🦅" if item_source == 'eagle' else "📁"
     msg_lines.append(f"{source_emoji} **#{gallery_id}**")
     
-    # 標題連結
+    # 標題連結 - 不檢查長度限制 (Discord 訊息內嵌連結無限制)
     if item_source == 'eagle' and web_url:
-        # 檢查 URL 長度
-        if len(web_url) <= DISCORD_URL_MAX_LENGTH:
-            msg_lines.append(f"📖 [{title}]({web_url})")
-        else:
-            # URL 太長，使用 nhentai 連結
-            nhentai_url = f"https://nhentai.net/g/{gallery_id}/"
-            msg_lines.append(f"📖 [{title}]({nhentai_url})")
+        msg_lines.append(f"📖 [{title}]({web_url})")
     elif item_source == 'downloads':
         pdf_url = f"{PDF_WEB_BASE_URL}/{quote(gallery_id)}/{quote(gallery_id)}.pdf"
         msg_lines.append(f"📖 [{title}]({pdf_url})")
@@ -260,14 +254,12 @@ async def show_item_detail(
     if len(final_msg) > 1900:
         final_msg = final_msg[:1900] + "..."
     
-    # 建立 View - 確保 URL 不超過限制
-    safe_web_url = web_url if len(web_url) <= DISCORD_URL_MAX_LENGTH else ""
-    
+    # 建立 View - PDF 按鈕會檢查 URL 長度，過長時不顯示按鈕
     view = ReadDetailView(
         gallery_id=gallery_id,
         title=title,
         item_source=item_source,
-        web_url=safe_web_url,
+        web_url=web_url,  # 傳入原始 URL，ReadDetailView 會檢查長度
         artists=artists,
         parodies=parodies,
         characters=characters,

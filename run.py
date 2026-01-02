@@ -3134,36 +3134,27 @@ async def random_command(interaction: discord.Interaction, count: int = 1, sourc
             # 角色
             characters = [tag.replace('character:', '') for tag in tags if isinstance(tag, str) and tag.startswith('character:')]
             if characters:
-                msg_lines.append(f"👤 角色: {', '.join(characters[:5])}")
-                if len(characters) > 5:
-                    msg_lines.append(f"  ... 及其他 {len(characters)-5} 位")
+                msg_lines.append(f"👤 角色: {', '.join(characters)}")
             
             # 類型
             types = [tag.replace('type:', '') for tag in tags if isinstance(tag, str) and tag.startswith('type:')]
             if types:
                 msg_lines.append(f"📁 類型: {', '.join(types)}")
             
-            # 使用者評論 (從 annotation 中提取)
+            # 使用者評論 (從 annotation 中提取，顯示全部)
             annotation = item.get('annotation', '')
             if annotation:
                 comments = parse_annotation_comments(annotation)
                 if comments:
                     msg_lines.append("")
                     msg_lines.append("💬 評論:")
-                    for comment in comments[:3]:  # 最多顯示 3 則
-                        # 截斷過長評論
-                        if len(comment) > 100:
-                            comment = comment[:100] + "..."
+                    for comment in comments:
                         msg_lines.append(f"  • {comment}")
-                    if len(comments) > 3:
-                        msg_lines.append(f"  ... 還有 {len(comments)-3} 則評論")
             
-            # Tags (去除已顯示的前綴 tags)
+            # Tags (顯示全部標籤)
             if other_tags:
                 msg_lines.append(f"")
-                msg_lines.append(f"🏷️ 標籤: {', '.join([f'`{tag}`' for tag in other_tags[:15]])}")
-                if len(other_tags) > 15:
-                    msg_lines.append(f"`... +{len(other_tags)-15} more`")
+                msg_lines.append(f"🏷️ 標籤: {', '.join([f'`{tag}`' for tag in other_tags])}")
             
             # 發送資料訊息
             final_msg = "\n".join(msg_lines)
@@ -3613,31 +3604,23 @@ async def read_command(interaction: discord.Interaction, nhentai_id: str):
         if languages:
             msg_lines.append(f"🌐 語言: {', '.join(languages)}")
         if characters:
-            msg_lines.append(f"👤 角色: {', '.join(characters[:5])}")
-            if len(characters) > 5:
-                msg_lines.append(f"  ... 及其他 {len(characters)-5} 位")
+            msg_lines.append(f"👤 角色: {', '.join(characters)}")
         if types:
             msg_lines.append(f"📁 類型: {', '.join(types)}")
         
-        # 使用者評論
+        # 使用者評論 (顯示全部)
         if annotation:
             comments = parse_annotation_comments(annotation)
             if comments:
                 msg_lines.append("")
                 msg_lines.append("💬 評論:")
-                for comment in comments[:3]:
-                    if len(comment) > 100:
-                        comment = comment[:100] + "..."
+                for comment in comments:
                     msg_lines.append(f"  • {comment}")
-                if len(comments) > 3:
-                    msg_lines.append(f"  ... 還有 {len(comments)-3} 則評論")
         
-        # 標籤
+        # 標籤 (顯示全部)
         if other_tags:
             msg_lines.append("")
-            msg_lines.append(f"🏷️ 標籤: {', '.join([f'`{tag}`' for tag in other_tags[:15]])}")
-            if len(other_tags) > 15:
-                msg_lines.append(f"`... +{len(other_tags)-15} more`")
+            msg_lines.append(f"🏷️ 標籤: {', '.join([f'`{tag}`' for tag in other_tags])}")
         
         # 發送資訊
         final_msg = "\n".join(msg_lines)

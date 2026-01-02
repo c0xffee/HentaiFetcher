@@ -33,6 +33,7 @@ from queue import Queue, Empty
 from pathlib import Path
 from datetime import datetime
 from typing import Optional, Dict, Any, List
+from urllib.parse import quote
 
 import discord
 from discord.ext import commands

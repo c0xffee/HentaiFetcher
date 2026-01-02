@@ -2000,18 +2000,29 @@ class HentaiFetcherBot(commands.Bot):
         self.worker = DownloadWorker(self)
         self.worker.start()
         logger.info("Bot setup 完成，下載執行緒已啟動")
-        
-        # 同步斜線指令
+    
+    async def on_guild_join(self, guild):
+        """加入新伺服器時同步指令"""
         try:
-            synced = await self.tree.sync()
-            logger.info(f"已同步 {len(synced)} 個斜線指令")
+            self.tree.copy_global_to(guild=guild)
+            synced = await self.tree.sync(guild=guild)
+            logger.info(f"已同步 {len(synced)} 個斜線指令到新伺服器: {guild.name}")
         except Exception as e:
-            logger.error(f"同步斜線指令失敗: {e}")
+            logger.error(f"同步斜線指令到 {guild.name} 失敗: {e}")
     
     async def on_ready(self):
         """Bot 連線成功時觸發"""
         logger.info(f'Bot 已登入: {self.user.name} (ID: {self.user.id})')
         logger.info(f'已連接到 {len(self.guilds)} 個伺服器')
+        
+        # 同步斜線指令到所有已加入的伺服器（即時生效）
+        try:
+            for guild in self.guilds:
+                self.tree.copy_global_to(guild=guild)
+                synced = await self.tree.sync(guild=guild)
+                logger.info(f"✅ 已同步 {len(synced)} 個斜線指令到: {guild.name}")
+        except Exception as e:
+            logger.error(f"同步斜線指令失敗: {e}")
         
         # 設定狀態
         await self.change_presence(

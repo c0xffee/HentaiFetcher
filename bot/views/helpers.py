@@ -224,13 +224,13 @@ async def show_item_detail(
     if info_parts:
         msg_lines.append(" | ".join(info_parts))
     
-    # 標籤顯示 (空格分隔，不用反引號)
+    # 標籤顯示 (反引號包裹，逗號分隔)
     if other_tags:
         msg_lines.append("")
-        tag_display = ' '.join(other_tags[:12])
+        tag_display = ', '.join([f'`{tag}`' for tag in other_tags[:12]])
         if len(other_tags) > 12:
-            tag_display += f" (+{len(other_tags) - 12})"
-        msg_lines.append(f"🏷️ {tag_display}")
+            tag_display += f", (+{len(other_tags) - 12})"
+        msg_lines.append(f"🏷️ 標籤: {tag_display}")
     
     # 評論顯示
     if annotation:

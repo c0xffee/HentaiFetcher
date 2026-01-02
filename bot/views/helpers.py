@@ -145,8 +145,17 @@ async def show_item_detail(
     item_source = result.get('source', 'eagle')
     annotation = result.get('annotation', '')
     
-    # 從 metadata.json 或 result 中獲取收藏數
+    # 從多個來源嘗試獲取收藏數
     favorites = result.get('favorites', 0)
+    
+    # 1. 嘗試從 annotation 中解析 (格式: ❤️ 收藏數: 1234)
+    if not favorites and annotation:
+        import re
+        match = re.search(r'❤️ 收藏數: (\d+)', annotation)
+        if match:
+            favorites = int(match.group(1))
+    
+    # 2. 嘗試從 metadata.json 讀取
     if not favorites and folder_path:
         try:
             import json
@@ -155,6 +164,12 @@ async def show_item_detail(
                 with open(metadata_path, 'r', encoding='utf-8') as f:
                     metadata = json.load(f)
                     favorites = metadata.get('num_favorites', 0) or metadata.get('favorites', 0)
+                    # 如果還沒有，嘗試從 metadata 的 annotation 解析
+                    if not favorites:
+                        meta_annotation = metadata.get('annotation', '')
+                        match = re.search(r'❤️ 收藏數: (\d+)', meta_annotation)
+                        if match:
+                            favorites = int(match.group(1))
         except Exception as e:
             logger.debug(f"讀取 metadata 收藏數失敗: {e}")
     

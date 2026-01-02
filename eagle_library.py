@@ -152,6 +152,17 @@ class EagleLibrary:
                         result["nhentai_id"] = nhentai_id
                         result["nhentai_url"] = entry.get("nhentaiUrl")
                         result["tags"] = entry.get("tags", [])
+                        
+                        # 讀取 Eagle metadata.json 獲取 annotation (包含收藏數)
+                        try:
+                            metadata_path = self.library_images_path / f"{eagle_item_id}.info" / "metadata.json"
+                            if metadata_path.exists():
+                                with open(metadata_path, 'r', encoding='utf-8') as f:
+                                    eagle_meta = json.load(f)
+                                    result["annotation"] = eagle_meta.get("annotation", "")
+                        except Exception:
+                            pass
+                        
                         return result
         return None
     

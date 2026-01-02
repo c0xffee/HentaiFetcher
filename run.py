@@ -3218,136 +3218,14 @@ async def random_command(interaction: discord.Interaction, count: int = 1, sourc
             await interaction.followup.send("📂 沒有任何本子可供選擇")
             return
         
-        # 逐本顯示（先封面，再資訊）- 避免順序錯亂
-        from urllib.parse import quote
+        # 使用統一模板顯示
+        from bot.views.helpers import show_item_detail
         
         for idx, item in enumerate(selected):
-            title = item.get('title', '未知')
             gallery_id = item.get('nhentai_id', '未知')
-            web_url = item.get('web_url', '')
-            tags = item.get('tags', [])
-            folder_path = item.get('folder_path', '')
-            item_source = item.get('source', 'eagle')
             
-            # 解析 tags
-            artists = [tag.replace('artist:', '') for tag in tags if isinstance(tag, str) and tag.startswith('artist:')]
-            parodies = [tag.replace('parody:', '') for tag in tags if isinstance(tag, str) and tag.startswith('parody:')]
-            groups = [tag.replace('group:', '') for tag in tags if isinstance(tag, str) and tag.startswith('group:')]
-            languages = [tag.replace('language:', '') for tag in tags if isinstance(tag, str) and tag.startswith('language:')]
-            other_tags = [tag for tag in tags if isinstance(tag, str) and not any(tag.startswith(prefix) for prefix in ['artist:', 'parody:', 'group:', 'language:', 'type:'])]
-            
-            # ===== 1. 先發送封面圖片 =====
-            cover_sent = False
-            if folder_path:
-                try:
-                    folder = Path(folder_path)
-                    # 封面檔名優先順序
-                    for cover_name in ['cover.jpg', 'cover.png', 'cover.webp', 'thumbnail.png']:
-                        cover_path = folder / cover_name
-                        if cover_path.exists():
-                            file = discord.File(str(cover_path), filename=cover_name)
-                            if idx == 0:
-                                await interaction.followup.send(file=file)
-                            else:
-                                await interaction.channel.send(file=file)
-                            cover_sent = True
-                            break
-                    
-                    # 如果沒找到封面，找第一張圖片
-                    if not cover_sent:
-                        for ext in ['*.jpg', '*.jpeg', '*.png', '*.webp']:
-                            images = list(folder.glob(ext))
-                            if images:
-                                images.sort(key=lambda x: x.name)
-                                file = discord.File(str(images[0]), filename=images[0].name)
-                                if idx == 0:
-                                    await interaction.followup.send(file=file)
-                                else:
-                                    await interaction.channel.send(file=file)
-                                cover_sent = True
-                                break
-                except Exception as e:
-                    logger.debug(f"封面發送失敗: {e}")
-            
-            # ===== 2. 再發送資料訊息 =====
-            msg_lines = []
-            
-            # 來源標記
-            source_emoji = "🦅" if item_source == 'eagle' else "📁"
-            
-            # 號碼
-            msg_lines.append(f"{source_emoji} **#{gallery_id}**")
-            
-            # 標題內嵌連結 (emoji 在連結外部以確保 markdown 格式正確)
-            if item_source == 'eagle' and web_url:
-                msg_lines.append(f"📖 [{title}]({web_url})")
-            elif item_source == 'downloads' and gallery_id:
-                pdf_web_url = f"{PDF_WEB_BASE_URL}/{quote(str(gallery_id))}/{quote(str(gallery_id))}.pdf"
-                msg_lines.append(f"📖 [{title}]({pdf_web_url})")
-            else:
-                msg_lines.append(f"📖 **{title}**")
-            
-            msg_lines.append("")  # 空行
-            
-            # ===== 顯示所有 metadata =====
-            # 來源
-            msg_lines.append(f"📦 來源: {'Eagle Library' if item_source == 'eagle' else '下載資料夾'}")
-            
-            # 基本資訊
-            if artists:
-                msg_lines.append(f"✍️ 作者: {', '.join(artists)}")
-            if groups:
-                msg_lines.append(f"👥 社團: {', '.join(groups)}")
-            if parodies:
-                msg_lines.append(f"🎬 原作: {', '.join(parodies)}")
-            if languages:
-                msg_lines.append(f"🌐 語言: {', '.join(languages)}")
-            
-            # 角色
-            characters = [tag.replace('character:', '') for tag in tags if isinstance(tag, str) and tag.startswith('character:')]
-            if characters:
-                msg_lines.append(f"👤 角色: {', '.join(characters)}")
-            
-            # 類型
-            types = [tag.replace('type:', '') for tag in tags if isinstance(tag, str) and tag.startswith('type:')]
-            if types:
-                msg_lines.append(f"📁 類型: {', '.join(types)}")
-            
-            # 使用者評論 (從 annotation 中提取，顯示全部)
-            annotation = item.get('annotation', '')
-            if annotation:
-                comments = parse_annotation_comments(annotation)
-                if comments:
-                    msg_lines.append("")
-                    msg_lines.append("💬 評論:")
-                    for c in comments:
-                        msg_lines.append(f"  **{c['user']}**")
-                        if c['content']:
-                            msg_lines.append(f"  {c['content']}")
-            
-            # Tags (顯示全部標籤)
-            if other_tags:
-                msg_lines.append(f"")
-                msg_lines.append(f"🏷️ 標籤: {', '.join([f'`{tag}`' for tag in other_tags])}")
-            
-            # 發送資料訊息
-            final_msg = "\n".join(msg_lines)
-            if len(final_msg) > 1900:
-                final_msg = final_msg[:1900] + "..."
-            
-            # 建立隨機結果互動視圖
-            from bot.views import RandomResultView
-            view = RandomResultView(
-                gallery_id=gallery_id,
-                title=title,
-                item_source=item_source,
-                web_url=web_url,
-                artists=artists,
-                source_filter=source
-            )
-            
-            # 確保封面已發送才發資訊（順序正確）
-            await interaction.channel.send(final_msg, view=view)
+            # show_item_detail 會處理封面、詳細資訊和 ReadDetailView 按鈕
+            await show_item_detail(interaction, gallery_id, show_cover=True)
     
     except ImportError:
         await interaction.followup.send("❌ Eagle Library 模組未安裝")

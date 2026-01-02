@@ -237,7 +237,6 @@ async def show_item_detail(
         if len(other_tags) > 12:
             tag_display += f" (+{len(other_tags) - 12})"
         msg_lines.append(f"🏷️ {tag_display}")
-        msg_lines.append("🏷️ 選擇標籤搜尋同類作品...")
     
     # 評論顯示
     if annotation:

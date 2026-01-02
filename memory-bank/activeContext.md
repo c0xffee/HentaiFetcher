@@ -4,6 +4,11 @@
 - ✅ Discord UI 元件整合 v3.3.1 - 測試回饋修復完成
 
 ## Recent Changes (最近更動)
+- [x] 2026-01-03 新增取消下載功能 (v3.3.2)
+  - **DownloadProgressView**: 下載進行中顯示取消按鈕
+  - **取消機制**: 使用 `cancel_events` 字典追蹤可取消任務
+  - 下載中點擊「❌ 取消下載」按鈕即可中止
+  - 取消後訊息更新為「🚫 下載已取消」
 - [x] 2026-01-02 修復 UI 元件測試回饋 (v3.3.1)
   - **SearchResultView 分頁**: 支援超過 10 個結果的分頁顯示
   - **修復 Select Menu 重複值**: 使用 `{index}:{gallery_id}` 唯一值

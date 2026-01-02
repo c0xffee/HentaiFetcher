@@ -89,6 +89,37 @@ logger = logging.getLogger('HentaiFetcher')
 # 下載佇列 - 結構: (url, channel_id, status_message_id, force_mode, batch_id)
 download_queue: Queue = Queue()
 
+# 取消下載追蹤器 - 用於標記需要取消的下載任務
+# 結構: {gallery_id: threading.Event}  - Event 被 set 時表示任務應該被取消
+cancel_events: Dict[str, threading.Event] = {}
+cancel_lock = threading.Lock()
+
+def request_cancel(gallery_id: str) -> bool:
+    """請求取消下載"""
+    with cancel_lock:
+        if gallery_id in cancel_events:
+            cancel_events[gallery_id].set()
+            return True
+        return False
+
+def register_cancel_event(gallery_id: str) -> threading.Event:
+    """註冊取消事件"""
+    with cancel_lock:
+        event = threading.Event()
+        cancel_events[gallery_id] = event
+        return event
+
+def unregister_cancel_event(gallery_id: str):
+    """取消註冊取消事件"""
+    with cancel_lock:
+        cancel_events.pop(gallery_id, None)
+
+def is_cancelled(gallery_id: str) -> bool:
+    """檢查是否已被取消"""
+    with cancel_lock:
+        event = cancel_events.get(gallery_id)
+        return event.is_set() if event else False
+
 # 批次下載追蹤器 - 用於統計多檔案下載結果
 # 結構: {batch_id: {'total': int, 'success': int, 'failed': int, 'channel_id': int, 'gallery_ids': List[str]}}
 batch_tracker: Dict[str, Dict[str, Any]] = {}
@@ -1107,7 +1138,7 @@ class DownloadProcessor:
     下載處理器：負責執行 gallery-dl、轉換 PDF 並生成 metadata
     """
     
-    def __init__(self, url: str, total_pages: int = 0, message_callback=None):
+    def __init__(self, url: str, total_pages: int = 0, message_callback=None, cancel_event: threading.Event = None):
         """
         初始化下載處理器
         
@@ -1115,16 +1146,22 @@ class DownloadProcessor:
             url: 要下載的網址
             total_pages: 預期總頁數（用於進度計算）
             message_callback: 狀態更新回調函式
+            cancel_event: 取消事件（被 set 時應中止下載）
         """
         self.url = url
         self.total_pages = total_pages
         self.message_callback = message_callback
+        self.cancel_event = cancel_event
         self.temp_path: Optional[Path] = None
         self.output_path: Optional[Path] = None
         self.last_error: str = ""
         self.download_complete = False  # 下載是否完成
         self.pdf_progress = 0  # PDF 轉換進度 (0-100)
         self.pdf_converting = False  # 是否正在轉換 PDF
+    
+    def is_cancelled(self) -> bool:
+        """檢查是否已被取消"""
+        return self.cancel_event and self.cancel_event.is_set()
         
     def get_downloaded_count(self) -> int:
         """獲取已下載的圖片數量"""
@@ -1480,13 +1517,24 @@ class DownloadProcessor:
         start_time = time.time()  # 開始計時
         
         try:
+            # 檢查是否已被取消
+            if self.is_cancelled():
+                return False, "🚫 下載已取消"
+            
             # 步驟 1: 下載
             logger.info(f"開始下載: {self.url}")
             print(f"[PROCESS] 開始下載: {self.url}", flush=True)
             if not self.download_with_gallery_dl():
+                # 再次檢查是否被取消
+                if self.is_cancelled():
+                    return False, "🚫 下載已取消"
                 error_detail = self.last_error if self.last_error else "未知原因"
                 elapsed = time.time() - start_time
                 return False, f"❌ 下載失敗\n🔗 {self.url}\n⏱️ 耗時: {elapsed:.1f}s\n\n{error_detail}"
+            
+            # 檢查是否已被取消
+            if self.is_cancelled():
+                return False, "🚫 下載已取消"
             
             # 尋找下載的內容
             # gallery-dl 可能會建立子目錄
@@ -1723,10 +1771,15 @@ class DownloadWorker(threading.Thread):
                 title = ""
                 media_id = ""
                 current_gallery_id = None
+                cancel_event = None
                 match = re.search(r'/g/(\d+)', url)
                 if match:
                     current_gallery_id = match.group(1)
                     gallery_id = current_gallery_id
+                    
+                    # 註冊取消事件
+                    cancel_event = register_cancel_event(gallery_id)
+                    
                     pages, title, media_id = get_nhentai_page_count(gallery_id)
                     if pages > 0:
                         # 發送開始下載訊息（包含頁數和預估時間），並返回訊息 ID
@@ -1736,8 +1789,16 @@ class DownloadWorker(threading.Thread):
                         )
                         start_msg_id = future.result(timeout=10)
                 
-                # 創建下載處理器
-                processor = DownloadProcessor(url, total_pages=pages)
+                # 檢查是否在開始前就被取消
+                if current_gallery_id and is_cancelled(current_gallery_id):
+                    logger.info(f"下載已取消 (開始前): {current_gallery_id}")
+                    unregister_cancel_event(current_gallery_id)
+                    self.current_task = None
+                    download_queue.task_done()
+                    continue
+                
+                # 創建下載處理器（傳入取消事件）
+                processor = DownloadProcessor(url, total_pages=pages, cancel_event=cancel_event)
                 
                 # 啟動進度監控執行緒
                 progress_stop_event = threading.Event()
@@ -1752,21 +1813,32 @@ class DownloadWorker(threading.Thread):
                 # 執行下載處理
                 success, message = processor.process()
                 
+                # 檢查是否被取消
+                was_cancelled = current_gallery_id and is_cancelled(current_gallery_id)
+                if was_cancelled:
+                    success = False
+                    message = f"🚫 下載已取消: #{current_gallery_id}"
+                
+                # 取消註冊取消事件
+                if current_gallery_id:
+                    unregister_cancel_event(current_gallery_id)
+                
                 # 停止進度監控
                 progress_stop_event.set()
                 
                 # 更新開始下載訊息（顯示最終狀態）
-                if start_msg_id:
+                if start_msg_id and not was_cancelled:
                     asyncio.run_coroutine_threadsafe(
                         self.update_final_progress(channel_id, start_msg_id, success, pages, title, gallery_id),
                         self.bot.loop
                     )
                 
-                # 發送結果到 Discord
-                asyncio.run_coroutine_threadsafe(
-                    self.send_result(channel_id, message),
-                    self.bot.loop
-                )
+                # 發送結果到 Discord (取消時不發送額外訊息)
+                if not was_cancelled:
+                    asyncio.run_coroutine_threadsafe(
+                        self.send_result(channel_id, message),
+                        self.bot.loop
+                    )
                 
                 # 更新批次追蹤
                 if batch_id:
@@ -2000,7 +2072,7 @@ class DownloadWorker(threading.Thread):
     
     async def send_start_message(self, channel_id: int, gallery_id: str, pages: int, title: str, media_id: str = "") -> int:
         """
-        發送開始下載訊息（包含頁數和預估時間）
+        發送開始下載訊息（包含頁數和預估時間 + 取消按鈕）
         
         Returns:
             訊息 ID，失敗時返回 None
@@ -2018,12 +2090,17 @@ class DownloadWorker(threading.Thread):
                 # 初始進度條
                 progress_bar = create_progress_bar(0, pages)
                 
+                # 建立帶有取消按鈕的 View
+                from bot.views import DownloadProgressView
+                view = DownloadProgressView(gallery_id=gallery_id, title=title)
+                
                 # 發送進度訊息
                 msg = await channel.send(
                     f"🔄 開始下載 **#{gallery_id}**\n"
                     f"📖 {title}\n"
                     f"{progress_bar}\n"
-                    f"(0/{pages}) ⏱️ 預估: {est_str}"
+                    f"(0/{pages}) ⏱️ 預估: {est_str}",
+                    view=view
                 )
                 
                 return msg.id

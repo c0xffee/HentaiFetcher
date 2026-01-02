@@ -13,7 +13,7 @@ from .base import BaseView, TIMEOUT_SECONDS
 from .search_view import SearchResultView
 from .read_view import ReadDetailView
 from .random_view import RandomResultView
-from .download_view import DownloadCompleteView
+from .download_view import DownloadCompleteView, DownloadProgressView
 from .list_view import PaginatedListView
 
 __all__ = [
@@ -23,5 +23,6 @@ __all__ = [
     'ReadDetailView', 
     'RandomResultView',
     'DownloadCompleteView',
+    'DownloadProgressView',
     'PaginatedListView',
 ]

@@ -1,10 +1,9 @@
 """
-Download Complete View - 下載完成互動視圖
-=========================================
+Download Views - 下載相關互動視圖
+=================================
 功能：
-- 開啟 PDF 按鈕
-- 查看詳情按鈕
-- nhentai 連結按鈕
+- DownloadProgressView: 下載進行中視圖 (含取消按鈕)
+- DownloadCompleteView: 下載完成互動視圖
 """
 
 import discord
@@ -18,6 +17,67 @@ from .base import BaseView, TIMEOUT_SECONDS
 logger = logging.getLogger('HentaiFetcher.views')
 
 PDF_WEB_BASE_URL = "http://192.168.0.32:8888"
+
+
+class DownloadProgressView(BaseView):
+    """下載進行中視圖 (含取消按鈕)"""
+    
+    def __init__(
+        self,
+        gallery_id: str,
+        title: str,
+        *,
+        timeout: float = 600  # 10 分鐘超時 (下載可能需要較長時間)
+    ):
+        super().__init__(timeout=timeout)
+        
+        self.gallery_id = gallery_id
+        self.title = title
+        self.cancelled = False
+        
+        # nhentai 連結
+        nhentai_url = f"https://nhentai.net/g/{gallery_id}/"
+        nhentai_button = ui.Button(
+            label="🔗 nhentai",
+            style=discord.ButtonStyle.link,
+            url=nhentai_url,
+            row=0
+        )
+        self.add_item(nhentai_button)
+    
+    @ui.button(label="❌ 取消下載", style=discord.ButtonStyle.danger, custom_id="dl_cancel", row=0)
+    async def cancel_button(self, interaction: discord.Interaction, button: ui.Button):
+        """取消下載"""
+        from run import request_cancel
+        
+        if self.cancelled:
+            await interaction.response.send_message("⚠️ 下載已經被取消", ephemeral=True)
+            return
+        
+        # 請求取消
+        cancelled = request_cancel(self.gallery_id)
+        
+        if cancelled:
+            self.cancelled = True
+            button.disabled = True
+            button.label = "🚫 已取消"
+            
+            await interaction.response.edit_message(
+                content=f"🚫 **下載已取消** - #{self.gallery_id}\n📖 {self.title}",
+                view=self
+            )
+        else:
+            await interaction.response.send_message(
+                "⚠️ 無法取消：下載可能已經完成或尚未開始",
+                ephemeral=True
+            )
+    
+    def disable_cancel(self):
+        """禁用取消按鈕（下載完成時調用）"""
+        for item in self.children:
+            if isinstance(item, ui.Button) and item.custom_id == "dl_cancel":
+                self.remove_item(item)
+                break
 
 
 class DownloadCompleteView(BaseView):

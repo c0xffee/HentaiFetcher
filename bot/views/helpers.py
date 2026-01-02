@@ -145,6 +145,19 @@ async def show_item_detail(
     item_source = result.get('source', 'eagle')
     annotation = result.get('annotation', '')
     
+    # 從 metadata.json 或 result 中獲取收藏數
+    favorites = result.get('favorites', 0)
+    if not favorites and folder_path:
+        try:
+            import json
+            metadata_path = Path(folder_path) / 'metadata.json'
+            if metadata_path.exists():
+                with open(metadata_path, 'r', encoding='utf-8') as f:
+                    metadata = json.load(f)
+                    favorites = metadata.get('num_favorites', 0) or metadata.get('favorites', 0)
+        except Exception as e:
+            logger.debug(f"讀取 metadata 收藏數失敗: {e}")
+    
     # 解析 tags
     artists = [tag.replace('artist:', '') for tag in tags if isinstance(tag, str) and tag.startswith('artist:')]
     parodies = [tag.replace('parody:', '') for tag in tags if isinstance(tag, str) and tag.startswith('parody:')]
@@ -187,7 +200,12 @@ async def show_item_detail(
         msg_lines.append(title_prefix)
     
     source_emoji = "🦅" if item_source == 'eagle' else "📁"
-    msg_lines.append(f"{source_emoji} **#{gallery_id}**")
+    
+    # ID 行 - 收藏數跟 ID 同一行顯示
+    id_line = f"{source_emoji} **#{gallery_id}**"
+    if favorites and favorites > 0:
+        id_line += f" ❤️ {favorites}"
+    msg_lines.append(id_line)
     
     # 標題連結 - 不檢查長度限制 (Discord 訊息內嵌連結無限制)
     if item_source == 'eagle' and web_url:
@@ -220,11 +238,6 @@ async def show_item_detail(
         msg_lines.append(f"📄 頁數: {page_count} 頁")
     if file_size_str:
         msg_lines.append(f"💾 大小: {file_size_str}")
-    
-    # 收藏數
-    favorites = result.get('favorites', 0)
-    if favorites and favorites > 0:
-        msg_lines.append(f"❤️ 收藏: {favorites:,}")
     
     # 標籤顯示 (反引號包裹，逗號分隔)
     if other_tags:

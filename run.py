@@ -2935,6 +2935,53 @@ def get_all_downloads_items() -> List[Dict[str, Any]]:
     return results
 
 
+def get_random_gallery_id(source_filter: str = "all") -> Optional[str]:
+    """
+    快速獲取一個隨機的 gallery ID (優化版，不載入完整資訊)
+    
+    Args:
+        source_filter: 來源篩選 (all/eagle/downloads)
+    
+    Returns:
+        隨機選中的 gallery ID，或 None
+    """
+    import secrets
+    
+    all_ids = []
+    
+    # 從 Eagle 索引快速獲取 ID 列表
+    if source_filter in ("all", "eagle"):
+        try:
+            from eagle_library import EagleLibrary
+            eagle = EagleLibrary()
+            index = eagle._load_index()
+            for entry in index.get("imports", {}).values():
+                nid = entry.get("nhentaiId")
+                if nid:
+                    all_ids.append(nid)
+        except Exception as e:
+            logger.debug(f"Eagle 索引讀取錯誤: {e}")
+    
+    # 從 downloads 快速獲取 ID 列表
+    if source_filter in ("all", "downloads"):
+        try:
+            if DOWNLOAD_DIR.exists():
+                for folder in DOWNLOAD_DIR.iterdir():
+                    if folder.is_dir():
+                        # 直接用資料夾名稱作為 ID (通常就是 gallery ID)
+                        folder_name = folder.name
+                        if folder_name.isdigit():
+                            if folder_name not in all_ids:
+                                all_ids.append(folder_name)
+        except Exception as e:
+            logger.debug(f"Downloads 目錄讀取錯誤: {e}")
+    
+    if not all_ids:
+        return None
+    
+    return secrets.choice(all_ids)
+
+
 def search_in_downloads(query: str) -> List[Dict[str, Any]]:
     """
     在 downloads 資料夾中搜尋本子
@@ -3146,84 +3193,55 @@ def get_random_from_downloads(count: int = 1) -> List[Dict[str, Any]]:
     app_commands.Choice(name='📁 下載資料夾', value='downloads'),
 ])
 async def random_command(interaction: discord.Interaction, count: int = 1, source: str = 'all'):
-    """隨機顯示本子"""
+    """隨機顯示本子 (優化版)"""
     await interaction.response.defer()
     
     try:
-        from eagle_library import EagleLibrary
-        from pathlib import Path
-        import re
         import secrets
         
         # 限制數量
         count = max(1, min(count, 5))  # 1-5 本
         
-        selected = []
+        # 快速獲取 ID 列表 (不載入完整資訊)
+        all_ids = []
         
-        if source == 'eagle':
-            # 從 Eagle Library 隨機選取
-            eagle = EagleLibrary()
-            selected = eagle.get_random(count)
-            if not selected:
-                await interaction.followup.send("📂 Eagle Library 中沒有任何本子")
-                return
+        if source in ("all", "eagle"):
+            try:
+                from eagle_library import EagleLibrary
+                eagle = EagleLibrary()
+                index = eagle._load_index()
+                for entry in index.get("imports", {}).values():
+                    nid = entry.get("nhentaiId")
+                    if nid and nid not in all_ids:
+                        all_ids.append(nid)
+            except Exception as e:
+                logger.debug(f"Eagle 索引讀取錯誤: {e}")
         
-        elif source == 'downloads':
-            # 從 downloads 資料夾隨機選取
-            selected = get_random_from_downloads(count)
-            if not selected:
-                await interaction.followup.send("📂 下載資料夾中沒有任何本子")
-                return
+        if source in ("all", "downloads"):
+            try:
+                if DOWNLOAD_DIR.exists():
+                    for folder in DOWNLOAD_DIR.iterdir():
+                        if folder.is_dir() and folder.name.isdigit():
+                            if folder.name not in all_ids:
+                                all_ids.append(folder.name)
+            except Exception as e:
+                logger.debug(f"Downloads 目錄讀取錯誤: {e}")
         
-        elif source == 'all':
-            # 從兩個來源合併後隨機選取
-            eagle = EagleLibrary()
-            eagle_items = eagle.list_all()
-            downloads_items = get_random_from_downloads(100)  # 先取得所有 downloads
-            
-            # 合併兩個來源（去重）
-            all_items = []
-            seen_ids = set()
-            
-            for item in eagle_items:
-                nid = item.get('nhentai_id')
-                if nid and nid not in seen_ids:
-                    seen_ids.add(nid)
-                    # 轉換格式以便後續處理
-                    eagle_result = eagle.find_by_nhentai_id(nid)
-                    if eagle_result:
-                        eagle_result['source'] = 'eagle'
-                        all_items.append(eagle_result)
-            
-            for item in downloads_items:
-                nid = item.get('nhentai_id')
-                if nid and nid not in seen_ids:
-                    seen_ids.add(nid)
-                    item['source'] = 'downloads'
-                    all_items.append(item)
-            
-            if not all_items:
-                await interaction.followup.send("📂 沒有任何本子可供選擇")
-                return
-            
-            # 使用 secrets 進行更隨機的選取
-            count = min(count, len(all_items))
-            selected_indices = set()
-            while len(selected_indices) < count:
-                idx = secrets.randbelow(len(all_items))
-                selected_indices.add(idx)
-            selected = [all_items[i] for i in selected_indices]
-        
-        if not selected:
+        if not all_ids:
             await interaction.followup.send("📂 沒有任何本子可供選擇")
             return
+        
+        # 隨機選擇 ID
+        count = min(count, len(all_ids))
+        selected_ids = set()
+        while len(selected_ids) < count:
+            idx = secrets.randbelow(len(all_ids))
+            selected_ids.add(all_ids[idx])
         
         # 使用統一模板顯示
         from bot.views.helpers import show_item_detail
         
-        for idx, item in enumerate(selected):
-            gallery_id = item.get('nhentai_id', '未知')
-            
+        for gallery_id in selected_ids:
             # show_item_detail 會處理封面、詳細資訊和 ReadDetailView 按鈕
             await show_item_detail(interaction, gallery_id, show_cover=True)
     

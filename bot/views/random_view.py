@@ -74,44 +74,18 @@ class RandomResultView(BaseView):
     
     @ui.button(label="🎲 隨機一本", style=discord.ButtonStyle.primary, custom_id="random_again", row=1)
     async def random_again_button(self, interaction: discord.Interaction, button: ui.Button):
-        """隨機一本 - 使用統一詳細模板"""
+        """隨機一本 - 使用統一詳細模板 (優化版)"""
         await interaction.response.defer()
         
         try:
-            from run import get_all_downloads_items
-            from eagle_library import EagleLibrary
+            from run import get_random_gallery_id
             
-            all_results = []
+            # 使用優化的隨機 ID 獲取函數
+            gallery_id = get_random_gallery_id(self.source_filter)
             
-            if self.source_filter in ("all", "eagle"):
-                try:
-                    eagle = EagleLibrary()
-                    eagle_results = eagle.get_all_items()
-                    for r in eagle_results:
-                        r['source'] = 'eagle'
-                    all_results.extend(eagle_results)
-                except Exception as e:
-                    logger.debug(f"Eagle 搜尋錯誤: {e}")
-            
-            if self.source_filter in ("all", "downloads"):
-                download_results = get_all_downloads_items()
-                all_results.extend(download_results)
-            
-            if not all_results:
+            if not gallery_id:
                 await interaction.followup.send("❌ 沒有可抽選的作品", ephemeral=True)
                 return
-            
-            # 隨機選擇
-            selected = secrets.choice(all_results)
-            
-            gallery_id = selected.get('nhentai_id', '')
-            title = selected.get('title', '未知')
-            web_url = selected.get('web_url', '')
-            folder_path = selected.get('folder_path', '')
-            item_source = selected.get('source', 'eagle')
-            tags = selected.get('tags', [])
-            
-            artists = [tag.replace('artist:', '') for tag in tags if isinstance(tag, str) and tag.startswith('artist:')]
             
             # 使用統一詳細模板顯示 (show_cover=True 會發送封面，並附帶 ReadDetailView 按鈕)
             await show_item_detail(interaction, gallery_id, show_cover=True)

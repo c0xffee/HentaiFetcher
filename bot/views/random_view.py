@@ -17,6 +17,7 @@ import logging
 import secrets
 
 from .base import BaseView, TIMEOUT_SECONDS
+from .helpers import build_safe_pdf_url, show_item_detail, DISCORD_URL_MAX_LENGTH
 
 logger = logging.getLogger('HentaiFetcher.views')
 
@@ -47,17 +48,9 @@ class RandomResultView(BaseView):
         self.source_filter = source_filter
         
         # Row 0: 主要按鈕
-        # 開啟 PDF (Link Button)
-        if item_source == 'eagle' and web_url:
-            pdf_button = ui.Button(
-                label="📄 開啟 PDF",
-                style=discord.ButtonStyle.link,
-                url=web_url,
-                row=0
-            )
-            self.add_item(pdf_button)
-        elif item_source == 'downloads':
-            pdf_url = f"{PDF_WEB_BASE_URL}/{quote(gallery_id)}/{quote(gallery_id)}.pdf"
+        # 開啟 PDF (Link Button) - 檢查 URL 長度
+        pdf_url = build_safe_pdf_url(gallery_id, item_source, web_url)
+        if pdf_url:
             pdf_button = ui.Button(
                 label="📄 開啟 PDF",
                 style=discord.ButtonStyle.link,
@@ -66,7 +59,7 @@ class RandomResultView(BaseView):
             )
             self.add_item(pdf_button)
         
-        # nhentai 連結
+        # nhentai 連結 (這個 URL 永遠很短)
         nhentai_url = f"https://nhentai.net/g/{gallery_id}/"
         nhentai_button = ui.Button(
             label="🔗 nhentai",
@@ -78,136 +71,11 @@ class RandomResultView(BaseView):
     
     @ui.button(label="📖 詳細資訊", style=discord.ButtonStyle.secondary, custom_id="random_detail", row=1)
     async def detail_button(self, interaction: discord.Interaction, button: ui.Button):
-        """查看詳細資訊 - 直接執行 read 邏輯"""
+        """查看詳細資訊 - 使用統一模板"""
         await interaction.response.defer()
         
         try:
-            from run import find_item_by_id, parse_annotation_comments
-            from .read_view import ReadDetailView
-            
-            result = find_item_by_id(self.gallery_id)
-            
-            if not result:
-                await interaction.followup.send(f"🔍 找不到 ID `{self.gallery_id}` 的本子", ephemeral=True)
-                return
-            
-            title = result.get('title', '未知')
-            web_url = result.get('web_url', '')
-            tags = result.get('tags', [])
-            folder_path = result.get('folder_path', '')
-            item_source = result.get('source', 'eagle')
-            
-            # 解析 tags
-            artists = [tag.replace('artist:', '') for tag in tags if isinstance(tag, str) and tag.startswith('artist:')]
-            parodies = [tag.replace('parody:', '') for tag in tags if isinstance(tag, str) and tag.startswith('parody:')]
-            groups = [tag.replace('group:', '') for tag in tags if isinstance(tag, str) and tag.startswith('group:')]
-            languages = [tag.replace('language:', '') for tag in tags if isinstance(tag, str) and tag.startswith('language:')]
-            characters = [tag.replace('character:', '') for tag in tags if isinstance(tag, str) and tag.startswith('character:')]
-            other_tags = [tag for tag in tags if isinstance(tag, str) and not any(tag.startswith(prefix) for prefix in ['artist:', 'parody:', 'group:', 'language:', 'character:', 'type:'])]
-            
-            # 計算檔案大小和頁數
-            file_size_str = ""
-            page_count = 0
-            if folder_path:
-                try:
-                    folder = Path(folder_path)
-                    # 計算 PDF 檔案大小
-                    pdf_files = list(folder.glob('*.pdf'))
-                    if pdf_files:
-                        pdf_size = pdf_files[0].stat().st_size
-                        if pdf_size > 1024 * 1024:
-                            file_size_str = f"{pdf_size / (1024*1024):.1f} MB"
-                        else:
-                            file_size_str = f"{pdf_size / 1024:.0f} KB"
-                    
-                    # 計算頁數 (圖片數量)
-                    image_exts = ['*.jpg', '*.jpeg', '*.png', '*.webp', '*.gif']
-                    for ext in image_exts:
-                        page_count += len(list(folder.glob(ext)))
-                except Exception as e:
-                    logger.debug(f"計算檔案資訊失敗: {e}")
-            
-            # 發送封面
-            if folder_path:
-                try:
-                    folder = Path(folder_path)
-                    for cover_name in ['cover.jpg', 'cover.png', 'cover.webp', 'thumbnail.png']:
-                        cover_path = folder / cover_name
-                        if cover_path.exists():
-                            file = discord.File(str(cover_path), filename=cover_name)
-                            await interaction.channel.send(file=file)
-                            break
-                    else:
-                        for ext in ['*.jpg', '*.jpeg', '*.png', '*.webp']:
-                            images = list(folder.glob(ext))
-                            if images:
-                                images.sort(key=lambda x: x.name)
-                                file = discord.File(str(images[0]), filename=images[0].name)
-                                await interaction.channel.send(file=file)
-                                break
-                except Exception as e:
-                    logger.debug(f"封面發送失敗: {e}")
-            
-            # 建立資訊訊息
-            msg_lines = []
-            source_emoji = "🦅" if item_source == 'eagle' else "📁"
-            msg_lines.append(f"{source_emoji} **#{self.gallery_id}**")
-            
-            if item_source == 'eagle' and web_url:
-                msg_lines.append(f"📖 [{title}]({web_url})")
-            elif item_source == 'downloads':
-                pdf_url = f"{PDF_WEB_BASE_URL}/{quote(self.gallery_id)}/{quote(self.gallery_id)}.pdf"
-                msg_lines.append(f"📖 [{title}]({pdf_url})")
-            else:
-                msg_lines.append(f"📖 **{title}**")
-            
-            msg_lines.append("")
-            msg_lines.append(f"📦 來源: {'Eagle Library' if item_source == 'eagle' else '下載資料夾'}")
-            
-            if artists:
-                msg_lines.append(f"✍️ 作者: {', '.join(artists)}")
-            if groups:
-                msg_lines.append(f"👥 社團: {', '.join(groups)}")
-            if parodies:
-                msg_lines.append(f"🎬 原作: {', '.join(parodies)}")
-            if languages:
-                msg_lines.append(f"🌐 語言: {', '.join(languages)}")
-            if characters:
-                msg_lines.append(f"👤 角色: {', '.join(characters[:3])}" + (f" (+{len(characters)-3})" if len(characters) > 3 else ""))
-            
-            # 加入檔案大小和頁數
-            info_parts = []
-            if page_count > 0:
-                info_parts.append(f"📄 {page_count} 頁")
-            if file_size_str:
-                info_parts.append(f"💾 {file_size_str}")
-            if info_parts:
-                msg_lines.append(" | ".join(info_parts))
-            
-            if other_tags:
-                msg_lines.append("")
-                tag_display = ', '.join([f'`{tag}`' for tag in other_tags[:15]])
-                if len(other_tags) > 15:
-                    tag_display += f" (+{len(other_tags) - 15})"
-                msg_lines.append(f"🏷️ 標籤: {tag_display}")
-            
-            final_msg = "\n".join(msg_lines)
-            if len(final_msg) > 1900:
-                final_msg = final_msg[:1900] + "..."
-            
-            view = ReadDetailView(
-                gallery_id=self.gallery_id,
-                title=title,
-                item_source=item_source,
-                web_url=web_url,
-                artists=artists,
-                parodies=parodies,
-                characters=characters,
-                other_tags=other_tags
-            )
-            
-            await interaction.channel.send(final_msg, view=view)
-            
+            await show_item_detail(interaction, self.gallery_id, show_cover=True)
         except Exception as e:
             logger.error(f"詳細資訊失敗: {e}", exc_info=True)
             await interaction.followup.send(f"❌ 操作失敗: {e}", ephemeral=True)
@@ -220,6 +88,7 @@ class RandomResultView(BaseView):
         try:
             from run import get_all_downloads_items
             from eagle_library import EagleLibrary
+            from .helpers import send_cover_image, build_safe_pdf_url
             
             all_results = []
             
@@ -253,52 +122,37 @@ class RandomResultView(BaseView):
             
             artists = [tag.replace('artist:', '') for tag in tags if isinstance(tag, str) and tag.startswith('artist:')]
             
-            # 發送封面
-            if folder_path:
-                try:
-                    folder = Path(folder_path)
-                    for cover_name in ['cover.jpg', 'cover.png', 'cover.webp', 'thumbnail.png']:
-                        cover_path = folder / cover_name
-                        if cover_path.exists():
-                            file = discord.File(str(cover_path), filename=cover_name)
-                            await interaction.channel.send(file=file)
-                            break
-                    else:
-                        for ext in ['*.jpg', '*.jpeg', '*.png', '*.webp']:
-                            images = list(folder.glob(ext))
-                            if images:
-                                images.sort(key=lambda x: x.name)
-                                file = discord.File(str(images[0]), filename=images[0].name)
-                                await interaction.channel.send(file=file)
-                                break
-                except Exception as e:
-                    logger.debug(f"封面發送失敗: {e}")
+            # 發送封面 (使用統一函數)
+            await send_cover_image(interaction.channel, folder_path)
             
-            # 建立訊息
+            # 建立訊息 - 使用安全的 URL
             msg_lines = []
             source_emoji = "🦅" if item_source == 'eagle' else "📁"
             msg_lines.append(f"🎲 **隨機抽選結果**")
             msg_lines.append(f"{source_emoji} **#{gallery_id}**")
             
-            if item_source == 'eagle' and web_url:
-                msg_lines.append(f"📖 [{title}]({web_url})")
-            elif item_source == 'downloads':
-                pdf_url = f"{PDF_WEB_BASE_URL}/{quote(gallery_id)}/{quote(gallery_id)}.pdf"
-                msg_lines.append(f"📖 [{title}]({pdf_url})")
+            # 使用安全的 PDF URL
+            safe_url = build_safe_pdf_url(gallery_id, item_source, web_url)
+            if safe_url and len(safe_url) <= DISCORD_URL_MAX_LENGTH:
+                msg_lines.append(f"📖 [{title}]({safe_url})")
             else:
-                msg_lines.append(f"📖 **{title}**")
+                # fallback 到 nhentai
+                nhentai_url = f"https://nhentai.net/g/{gallery_id}/"
+                msg_lines.append(f"📖 [{title}]({nhentai_url})")
             
             if artists:
                 msg_lines.append(f"✍️ 作者: {', '.join(artists)}")
             
             final_msg = "\n".join(msg_lines)
             
-            # 建立新的 View
+            # 建立新的 View - 傳入安全的 URL
+            safe_web_url = web_url if len(web_url) <= DISCORD_URL_MAX_LENGTH else ""
+            
             new_view = RandomResultView(
                 gallery_id=gallery_id,
                 title=title,
                 item_source=item_source,
-                web_url=web_url,
+                web_url=safe_web_url,
                 artists=artists,
                 source_filter=self.source_filter
             )

@@ -13,10 +13,28 @@ from typing import List, Tuple
 from pathlib import Path
 import shutil
 import logging
+import os
+import stat
+import time
 
 from .base import BaseView, TIMEOUT_SECONDS
 
 logger = logging.getLogger('HentaiFetcher.views')
+
+
+def _remove_readonly(func, path, excinfo):
+    """移除只讀屬性並重試刪除 (處理 Windows 檔案鎖定)"""
+    try:
+        os.chmod(path, stat.S_IWRITE)
+        func(path)
+    except Exception as e:
+        # 如果還是失敗，嘗試等待一下再試
+        time.sleep(0.1)
+        try:
+            os.chmod(path, stat.S_IWRITE)
+            func(path)
+        except:
+            logger.warning(f"無法刪除 {path}: {e}")
 
 
 class CleanupConfirmView(BaseView):
@@ -65,16 +83,25 @@ class CleanupConfirmView(BaseView):
         deleted = 0
         freed_size = 0
         
+        failed_folders = []
+        
         for folder, gid, title in self.can_delete:
             try:
                 # 計算資料夾大小
                 folder_size = sum(f.stat().st_size for f in folder.rglob('*') if f.is_file())
                 freed_size += folder_size
                 
-                shutil.rmtree(folder)
-                deleted += 1
-                logger.info(f"已刪除已導入項目: {folder.name}")
+                # 使用 onerror 處理 Windows 檔案鎖定
+                shutil.rmtree(folder, onerror=_remove_readonly)
+                
+                # 確認是否真的刪除了
+                if not folder.exists():
+                    deleted += 1
+                    logger.info(f"已刪除已導入項目: {folder.name}")
+                else:
+                    failed_folders.append((gid, "資料夾仍存在"))
             except Exception as e:
+                failed_folders.append((gid, str(e)))
                 logger.error(f"刪除失敗 {folder.name}: {e}")
         
         # 格式化釋放空間
@@ -87,6 +114,10 @@ class CleanupConfirmView(BaseView):
         
         result_msg = f"✅ 已清除 **{deleted}/{len(self.can_delete)}** 個已導入項目\n"
         result_msg += f"💾 釋放空間: {size_str}\n"
+        
+        if failed_folders:
+            result_msg += f"⚠️ 刪除失敗: {len(failed_folders)} 個 (檔案可能被佔用)\n"
+        
         if self.not_in_eagle:
             result_msg += f"📁 保留未導入項目: {len(self.not_in_eagle)} 個"
         

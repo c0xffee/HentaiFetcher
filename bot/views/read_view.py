@@ -136,17 +136,11 @@ class ReadDetailView(BaseView):
         self.other_tags = other_tags or []
         
         # Row 0: 主要按鈕
-        # 開啟 PDF 按鈕 (Link Button)
-        if item_source == 'eagle' and web_url:
-            pdf_button = ui.Button(
-                label="📄 開啟 PDF",
-                style=discord.ButtonStyle.link,
-                url=web_url,
-                row=0
-            )
-            self.add_item(pdf_button)
-        elif item_source == 'downloads':
-            pdf_url = f"{PDF_WEB_BASE_URL}/{quote(gallery_id)}/{quote(gallery_id)}.pdf"
+        # 開啟 PDF 按鈕 (Link Button) - 檢查 URL 長度
+        from .helpers import build_safe_pdf_url
+        
+        pdf_url = build_safe_pdf_url(gallery_id, item_source, web_url)
+        if pdf_url:
             pdf_button = ui.Button(
                 label="📄 開啟 PDF",
                 style=discord.ButtonStyle.link,
@@ -155,7 +149,7 @@ class ReadDetailView(BaseView):
             )
             self.add_item(pdf_button)
         
-        # nhentai 連結
+        # nhentai 連結 (永遠很短)
         nhentai_url = f"https://nhentai.net/g/{gallery_id}/"
         nhentai_button = ui.Button(
             label="🔗 nhentai",

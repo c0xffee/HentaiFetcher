@@ -16,6 +16,7 @@ from .random_view import RandomResultView
 from .download_view import DownloadCompleteView, DownloadProgressView
 from .list_view import PaginatedListView
 from .cleanup_view import CleanupConfirmView
+from .helpers import show_item_detail, send_cover_image, build_safe_pdf_url
 
 __all__ = [
     'BaseView',
@@ -27,4 +28,7 @@ __all__ = [
     'DownloadProgressView',
     'PaginatedListView',
     'CleanupConfirmView',
+    'show_item_detail',
+    'send_cover_image',
+    'build_safe_pdf_url',
 ]

@@ -167,9 +167,25 @@ class SearchResultView(BaseView):
             item_source = r.get('source', 'eagle')
             source_emoji = "🦅" if item_source == 'eagle' else "📁"
             
+            # 獲取收藏數
+            favorites = r.get('favorites', 0)
+            if not favorites:
+                # 嘗試從 annotation 解析
+                annotation = r.get('annotation', '')
+                if annotation:
+                    import re
+                    match = re.search(r'❤️ 收藏數: (\d+)', annotation)
+                    if match:
+                        favorites = int(match.group(1))
+            
+            # ID 行顯示收藏數
+            id_line = f"📖 ID: `{gallery_id}`"
+            if favorites and favorites > 0:
+                id_line += f" ❤️ {favorites}"
+            
             embed.add_field(
                 name=f"{source_emoji} {i}. {item_title}",
-                value=f"📖 ID: `{gallery_id}`",
+                value=id_line,
                 inline=False
             )
         

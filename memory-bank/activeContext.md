@@ -1,9 +1,20 @@
 # Active Context
 
 ## Current Focus (目前焦點)
-- ✅ Discord UI 元件整合 v3.3.7 - 多項重要修復
+- ✅ Discord UI 元件整合 v3.3.9 - 按鈕簡化與統一
 
 ## Recent Changes (最近更動)
+- [x] 2026-01-03 v3.3.9 按鈕簡化
+  - **移除「詳細資訊」按鈕**: /random 已直接輸出詳細格式，無需額外按鈕
+  - **移除「下載此本」按鈕**: 本子已在庫中，無需重新下載
+  - **統一按鈕命名**: 「再抽一次」改名為「🎲 隨機一本」
+  - **統一顯示格式**: 隨機按鈕使用 `show_item_detail()` 輸出詳細模板
+  - **版本號更新至 3.3.9**
+- [x] 2026-01-03 v3.3.8 重要修復
+  - **RandomButton 真正執行**: 修復只顯示提示訊息的問題
+  - **詳細模板增強**: `show_item_detail()` 新增 tags (最多12個) 和 comments (最多3條)
+  - **顯示社團/語言**: 詳細資訊包含 groups 和 languages
+  - **美化排版**: 使用空行分隔區塊
 - [x] 2026-01-03 v3.3.7 重要修復
   - **修復 URL 超過 512 字符錯誤**: Discord Link Button 限制，使用 `build_safe_pdf_url()` 檢查並 fallback
   - **統一詳情顯示模板**: 新增 `helpers.py` 包含 `show_item_detail()`，讓 random/list/search 用同一模板

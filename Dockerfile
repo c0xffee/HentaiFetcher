@@ -42,11 +42,12 @@ RUN pip install --no-cache-dir \
     Pillow>=10.0.0
 
 # 建立必要目錄
-RUN mkdir -p /app/config /app/downloads /app/temp
+RUN mkdir -p /app/config /app/downloads /app/temp /app/bot/views
 
 # 複製應用程式碼
 COPY run.py /app/run.py
 COPY eagle_library.py /app/eagle_library.py
+COPY bot/ /app/bot/
 
 # 設定權限
 RUN chmod +x /app/run.py

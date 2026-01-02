@@ -40,8 +40,8 @@
 ## Eagle Auto-Importer 插件
 - **類型**: Background Service
 - **執行環境**: Eagle Plugin API (基於 Node.js)
-- **監控路徑**: `\\192.168.10.2\docker\HentaiFetcher\downloads`
-- **歸檔路徑**: `\\192.168.10.2\docker\HentaiFetcher\imported`
+- **監控路徑**: `\\192.168.0.32\docker\HentaiFetcher\downloads`
+- **歸檔路徑**: `\\192.168.0.32\docker\HentaiFetcher\imported`
 - **掃描間隔**: 30 秒
 
 ## Development Environment

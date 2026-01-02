@@ -50,10 +50,10 @@ class EagleLibrary:
             default_library_path = "/app/eagle-library"
             default_index_path = "/app/imports-index.json"
         else:
-            default_library_path = "//192.168.10.2/docker/Eagle/nHentai.library/images"
-            default_index_path = "//192.168.10.2/docker/HentaiFetcher/imports-index.json"
+            default_library_path = "//192.168.0.32/docker/Eagle/nHentai.library/images"
+            default_index_path = "//192.168.0.32/docker/HentaiFetcher/imports-index.json"
         
-        default_web_url = "http://192.168.10.2:8889"
+        default_web_url = "http://192.168.0.32:8889"
         
         # 使用優先順序: 參數 > 環境變數 > 預設值
         self.library_images_path = Path(

@@ -15,7 +15,7 @@ const path = require('path');
 const CONFIG = {
     // 監控來源 - NAS 下載資料夾
     // ⚠️ 重要：必須使用映射磁碟機路徑 (如 Z:\)，UNC 路徑 (\\IP\...) 會導致 Eagle API 錯誤
-    // 設定方式: 在 Windows 執行 net use Z: \\192.168.10.2\docker
+    // 設定方式: 在 Windows 執行 net use Z: \\192.168.0.32\docker
     NAS_WATCH_PATH: 'Z:\\HentaiFetcher\\downloads',
     
     // 歸檔目的地 - 匯入後移動到此資料夾
@@ -37,8 +37,8 @@ const CONFIG = {
     // Synology Web Station 端點:
     // - 8888: downloads 資料夾 (匯入前)
     // - 8889: Eagle Library images 資料夾 (匯入後)
-    WEB_BASE_URL_DOWNLOADS: 'http://192.168.10.2:8888',
-    WEB_BASE_URL_EAGLE: 'http://192.168.10.2:8889',
+    WEB_BASE_URL_DOWNLOADS: 'http://192.168.0.32:8888',
+    WEB_BASE_URL_EAGLE: 'http://192.168.0.32:8889',
     
     // 匯入索引檔案路徑 (供 Discord Bot 讀取)
     INDEX_FILE_PATH: 'Z:\\HentaiFetcher\\imports-index.json'
@@ -491,7 +491,7 @@ async function processComicFolder(folderPath, folderName) {
             log(`匯入錯誤: ${pdfFile} - ${err.message}`, 'error');
             if (err.message.includes('absolute')) {
                 log('💡 提示: 請確認已將 NAS 掛載為磁碟機 (如 Z:)', 'warn');
-                log('   執行: net use Z: \\\\192.168.10.2\\docker', 'warn');
+                log('   執行: net use Z: \\\\192.168.0.32\\docker', 'warn');
             }
             console.error('完整錯誤:', err);
         }
@@ -544,7 +544,7 @@ async function scanNasFolder() {
         if (!watchPathValidation.valid) {
             log(`⚠️ 監控路徑格式錯誤: ${watchPathValidation.error}`, 'error');
             log('請修改 CONFIG.NAS_WATCH_PATH 為映射磁碟機路徑 (如 Z:\\HentaiFetcher\\downloads)', 'warn');
-            log('設定映射: net use Z: \\\\192.168.10.2\\docker', 'warn');
+            log('設定映射: net use Z: \\\\192.168.0.32\\docker', 'warn');
             isScanning = false;
             return;
         }

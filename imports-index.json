@@ -1,6 +1,6 @@
 {
-  "webBaseUrlDownloads": "http://192.168.10.2:8888",
-  "webBaseUrlEagle": "http://192.168.10.2:8889",
+  "webBaseUrlDownloads": "http://192.168.0.32:8888",
+  "webBaseUrlEagle": "http://192.168.0.32:8889",
   "lastUpdated": "2026-01-02T00:00:24.051Z",
   "imports": {
     "547997": {

@@ -2901,15 +2901,19 @@ async def random_command(interaction: discord.Interaction, count: int = 1, sourc
             selected = [all_items[i] for i in selected_indices]
         
         if not selected:
-            await interaction.followup.send("📂 Eagle Library 中沒有任何本子")
+            await interaction.followup.send("📂 沒有任何本子可供選擇")
             return
         
-        for item in selected:
+        # 逐本顯示（先封面，再資訊）- 避免順序錯亂
+        from urllib.parse import quote
+        
+        for idx, item in enumerate(selected):
             title = item.get('title', '未知')
             gallery_id = item.get('nhentai_id', '未知')
             web_url = item.get('web_url', '')
             tags = item.get('tags', [])
-            eagle_folder = item.get('folder_path', '')
+            folder_path = item.get('folder_path', '')
+            item_source = item.get('source', 'eagle')
             
             # 解析 tags
             artists = [tag.replace('artist:', '') for tag in tags if isinstance(tag, str) and tag.startswith('artist:')]
@@ -2918,47 +2922,60 @@ async def random_command(interaction: discord.Interaction, count: int = 1, sourc
             languages = [tag.replace('language:', '') for tag in tags if isinstance(tag, str) and tag.startswith('language:')]
             other_tags = [tag for tag in tags if isinstance(tag, str) and not any(tag.startswith(prefix) for prefix in ['artist:', 'parody:', 'group:', 'language:', 'type:'])]
             
-            # 先發送封面圖片
+            # ===== 1. 先發送封面圖片 =====
             cover_sent = False
-            if eagle_folder:
+            if folder_path:
                 try:
-                    folder_path = Path(eagle_folder)
-                    # Eagle 資料夾中可能的封面檔名
+                    folder = Path(folder_path)
+                    # 封面檔名優先順序
                     for cover_name in ['cover.jpg', 'cover.png', 'cover.webp', 'thumbnail.png']:
-                        cover_path = folder_path / cover_name
+                        cover_path = folder / cover_name
                         if cover_path.exists():
                             file = discord.File(str(cover_path), filename=cover_name)
-                            await interaction.channel.send(file=file)
+                            if idx == 0:
+                                await interaction.followup.send(file=file)
+                            else:
+                                await interaction.channel.send(file=file)
                             cover_sent = True
-                            logger.info(f"發送封面: {cover_name}")
                             break
                     
                     # 如果沒找到封面，找第一張圖片
                     if not cover_sent:
                         for ext in ['*.jpg', '*.jpeg', '*.png', '*.webp']:
-                            images = list(folder_path.glob(ext))
+                            images = list(folder.glob(ext))
                             if images:
                                 images.sort(key=lambda x: x.name)
                                 file = discord.File(str(images[0]), filename=images[0].name)
-                                await interaction.channel.send(file=file)
+                                if idx == 0:
+                                    await interaction.followup.send(file=file)
+                                else:
+                                    await interaction.channel.send(file=file)
                                 cover_sent = True
                                 break
                 except Exception as e:
                     logger.debug(f"封面發送失敗: {e}")
             
-            # 構建資料訊息
+            # ===== 2. 再發送資料訊息 =====
             msg_lines = []
             
             # 來源標記
-            item_source = item.get('source', 'eagle')
             source_emoji = "🦅" if item_source == 'eagle' else "📁"
             
-            # 標題與連結
+            # 標題
             msg_lines.append(f"{source_emoji} **#{gallery_id}**")
-            if web_url:
+            
+            # 連結 - 根據來源決定
+            if item_source == 'eagle' and web_url:
+                # Eagle 來源：使用 Eagle Web URL (PDF)
                 msg_lines.append(f"📥 {web_url}")
+            elif item_source == 'downloads' and gallery_id:
+                # Downloads 來源：生成 PDF Web URL
+                pdf_web_url = f"{PDF_WEB_BASE_URL}/{quote(str(gallery_id))}/{quote(str(gallery_id))}.pdf"
+                msg_lines.append(f"📥 {pdf_web_url}")
             elif item.get('url'):
+                # 備用：nhentai 連結
                 msg_lines.append(f"🔗 {item.get('url')}")
+            
             msg_lines.append(f"\n**{title}**\n")
             
             # 基本信息
@@ -2985,7 +3002,9 @@ async def random_command(interaction: discord.Interaction, count: int = 1, sourc
             final_msg = "\n".join(msg_lines)
             if len(final_msg) > 1900:
                 final_msg = final_msg[:1900] + "..."
-            await interaction.followup.send(final_msg)
+            
+            # 確保封面已發送才發資訊（順序正確）
+            await interaction.channel.send(final_msg)
     
     except ImportError:
         await interaction.followup.send("❌ Eagle Library 模組未安裝")
@@ -3403,6 +3422,7 @@ async def help_command(interaction: discord.Interaction):
         name="ℹ️ 系統",
         value="`/ping` - 測試連線\n"
               "`/version` - 版本號\n"
+              "`/sync` - 同步指令 (管理員)\n"
               "`/help` - 顯示此說明",
         inline=True
     )

@@ -4,6 +4,14 @@
 - 斜線指令版本 v3.1.0 - 功能增強
 
 ## Recent Changes (最近更動)
+- [x] 2026-01-02 `/random` downloads 來源使用 PDF 連結
+  - 改為 http://192.168.0.32:8888/{id}/{id}.pdf
+  - 不再顯示 nhentai 網址
+- [x] 2026-01-02 `/random count` 顯示順序修正
+  - 一本顯示完再傳下一本
+  - 先傳封面，再傳資訊
+- [x] 2026-01-02 `/help` 新增 `/sync` 指令說明
+- [x] 2026-01-02 systemPatterns.md 新增 Help-Sync 規則
 - [x] 2026-01-02 `/random` 預設改為雙來源 (all)
   - 預設從 Eagle + Downloads 合併隨機
   - 新增 `/sync` 指令強制同步斜線指令

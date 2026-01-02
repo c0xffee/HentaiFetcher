@@ -13,6 +13,7 @@
    git commit -m "<type>: <description>"
    ```
 5. **Completion Notification**: 完成上述步驟後，告知使用者：「✅ 已更新 Memory Bank 並提交 Git。」
+6. **Help-Sync**: 🔴 **重要** - 新增或修改任何斜線指令時，**必須同步更新 `/help` 指令的說明內容**。
 
 ## Architecture (系統架構)
 

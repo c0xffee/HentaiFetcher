@@ -50,7 +50,37 @@
 - **Production**: Docker Container
 
 ## Known Limitations (已知限制)
-- [待填入]
+- **Discord 文字無法變成按鈕**：訊息內的標籤文字無法直接點擊執行指令
+- **解決方案**：使用 Select Menu 下拉選單選擇 Tag 進行搜尋
+
+## Discord UI 元件規劃
+> 使用 discord.py 2.x 的 View/Button/Select 元件
+
+### 持久化設計
+- **Persistent Views**：Bot 重啟後按鈕仍可運作
+- **custom_id 格式**：`{action}:{data}` (例如 `read:432205`, `tag_search:gyaru`)
+- **超時時間**：5 分鐘後自動禁用
+
+### View 類別架構
+| View 類別 | 元件類型 | 功能 |
+|-----------|----------|------|
+| `SearchResultView` | Select Menu + Button | 搜尋結果選擇 → 執行 `/read` |
+| `ReadDetailView` | Button + Select Menu | 詳情頁操作 + Tag 選擇搜尋 |
+| `RandomResultView` | Button | 隨機結果操作 |
+| `DownloadCompleteView` | Button | 下載完成後操作 |
+| `PaginatedListView` | Button | 分頁瀏覽 (可選) |
+
+### custom_id 命名規範
+```
+read:{nhentai_id}         # 查看詳情
+dl:{nhentai_id}           # 下載
+tag_search:{tag_name}     # 搜尋同標籤
+artist_search:{artist}    # 搜尋同作者
+parody_search:{parody}    # 搜尋同原作
+random:1                  # 再抽一次
+open_pdf:{nhentai_id}     # 開啟 PDF (Link Button)
+```
 
 ## Future Considerations (未來考量)
-- [待訪談確認]
+- [ ] 更多互動元件整合
+- [ ] Modal 對話框 (例如批次下載輸入)

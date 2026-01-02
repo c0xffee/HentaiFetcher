@@ -38,20 +38,54 @@
 
 ---
 
-## 🔄 Phase 3: Refactoring (重構週期) - 待規劃
-> 程式碼品質改善
+## 🎮 Phase 3: UI Components (Discord 互動元件) - 待開發
+> 使用 discord.py View/Button/Select 提升使用體驗
 
-- [ ] Step 3.1: 模組化拆分 (run.py 目前約 2800 行)
-- [ ] Step 3.2: 新增單元測試
-- [ ] Step 3.3: 錯誤處理優化
+### Step 3.1: 基礎架構
+- [ ] 建立 `bot/views/` 資料夾結構
+- [ ] 實作持久化 View 基礎類別 (Bot 重啟後按鈕仍可用)
+- [ ] 設定 5 分鐘超時機制
+
+### Step 3.2: SearchResultView (搜尋結果)
+- [ ] Select Menu 選擇作品 → 自動執行 `/read`
+- [ ] 按鈕：`🔄 重新搜尋`、`🔀 隨機一本`
+- [ ] custom_id 格式：`select_read:{id}`
+
+### Step 3.3: ReadDetailView (詳情頁)
+- [ ] 按鈕：`📄 開啟 PDF`、`🔗 nhentai`、`🔀 隨機一本`
+- [ ] 按鈕：`🔍 同作者`、`🔍 同原作`、`📥 重新下載`
+- [ ] **Tag Select Menu**：選擇標籤搜尋同類作品
+- [ ] custom_id 格式：`read_*`、`tag_search:{tag}`
+
+### Step 3.4: RandomResultView (隨機結果)
+- [ ] 按鈕：`📖 詳細資訊`、`📄 開啟 PDF`、`🔀 再抽一次`
+- [ ] 按鈕：`🔍 同作者`
+- [ ] custom_id 格式：`random_*`、`read:{id}`
+
+### Step 3.5: DownloadCompleteView (下載完成)
+- [ ] 按鈕：`📄 開啟 PDF`、`📖 查看詳情`、`🔗 nhentai`
+- [ ] custom_id 格式：`dl_complete_*`
+
+### Step 3.6: PaginatedListView (分頁列表) - 可選
+- [ ] 分頁按鈕：`⬅️ 上一頁`、`➡️ 下一頁`
+- [ ] 快捷按鈕：`🔍 搜尋`、`🔀 隨機`
 
 ---
 
-## 🧪 Phase 4: Testing (測試建立) - 待規劃
+## 🔄 Phase 4: Refactoring (重構週期) - 待規劃
+> 程式碼品質改善
 
-- [ ] Step 4.1: 建立測試框架
-- [ ] Step 4.2: 核心功能單元測試
-- [ ] Step 4.3: 整合測試
+- [ ] Step 4.1: 模組化拆分 (run.py 目前約 3800 行)
+- [ ] Step 4.2: 新增單元測試
+- [ ] Step 4.3: 錯誤處理優化
+
+---
+
+## 🧪 Phase 5: Testing (測試建立) - 待規劃
+
+- [ ] Step 5.1: 建立測試框架
+- [ ] Step 5.2: 核心功能單元測試
+- [ ] Step 5.3: 整合測試
 
 ---
 

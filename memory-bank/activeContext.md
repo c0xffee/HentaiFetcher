@@ -1,9 +1,16 @@
 # Active Context
 
 ## Current Focus (目前焦點)
-- 斜線指令版本 v3.2.0 - 雙來源搜尋
+- 🎮 Discord UI 元件整合規劃 - Phase 3
 
 ## Recent Changes (最近更動)
+- [x] 2026-01-02 規劃 Discord UI 元件整合方案
+  - 設計 Persistent Views (持久化按鈕)
+  - 設計 SearchResultView (Select Menu 選擇 → /read)
+  - 設計 ReadDetailView (Tag Select Menu 搜尋同類)
+  - 設計 RandomResultView / DownloadCompleteView
+  - 更新 implementation-plan.md 新增 Phase 3
+  - 更新 techContext.md 新增 UI 元件規劃
 - [x] 2026-01-02 修復評論解析 + 顯示全部 metadata
   - `parse_annotation_comments()` 正確解析用戶名和評論內容
   - 顯示格式：`**[用戶名] (時間)**` + 評論內容

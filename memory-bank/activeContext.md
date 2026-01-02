@@ -4,6 +4,11 @@
 - ✅ Discord UI 元件整合 v3.3.1 - 測試回饋修復完成
 
 ## Recent Changes (最近更動)
+- [x] 2026-01-03 下載前 reindex + cleanup 重設計 (v3.3.3)
+  - **quick_reindex()**: 下載前快速重建索引 (60秒冷卻)
+  - **check_already_downloaded()**: 新增 `do_reindex` 參數
+  - **/cleanup 改為清除 imported 資料夾**: 比對 Eagle 後刪除已導入項目
+  - 顯示釋放空間大小
 - [x] 2026-01-03 新增取消下載功能 (v3.3.2)
   - **DownloadProgressView**: 下載進行中顯示取消按鈕
   - **取消機制**: 使用 `cancel_events` 字典追蹤可取消任務

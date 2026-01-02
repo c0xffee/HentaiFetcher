@@ -334,17 +334,52 @@ def generate_eagle_id() -> str:
     return f"L{int(datetime.now().timestamp() * 1000)}"
 
 
-def check_already_downloaded(gallery_id: str) -> tuple[bool, Optional[dict]]:
+# 快速 reindex 標記 - 用於避免頻繁重複索引
+_last_reindex_time: float = 0
+REINDEX_COOLDOWN = 60  # 60 秒內不重複 reindex
+
+def quick_reindex() -> int:
+    """
+    快速重建索引 (有冷卻時間限制)
+    
+    Returns:
+        新增項目數，如果跳過則返回 -1
+    """
+    global _last_reindex_time
+    
+    current_time = time.time()
+    if current_time - _last_reindex_time < REINDEX_COOLDOWN:
+        logger.debug(f"跳過 reindex (冷卻中)")
+        return -1
+    
+    try:
+        from eagle_library import EagleLibrary
+        eagle = EagleLibrary()
+        added = eagle.rebuild_index()
+        _last_reindex_time = time.time()
+        logger.info(f"快速 reindex 完成，新增 {added} 項")
+        return added
+    except Exception as e:
+        logger.warning(f"快速 reindex 失敗: {e}")
+        return 0
+
+
+def check_already_downloaded(gallery_id: str, do_reindex: bool = False) -> tuple[bool, Optional[dict]]:
     """
     檢查 gallery 是否已經下載過 (存在於 Eagle Library)
     
     Args:
         gallery_id: nhentai Gallery ID
+        do_reindex: 是否先執行快速 reindex
     
     Returns:
         (已存在, 結果資訊) - 如果已存在，結果包含 web_url, title 等
     """
     try:
+        # 可選：先執行快速 reindex
+        if do_reindex:
+            quick_reindex()
+        
         from eagle_library import EagleLibrary
         eagle = EagleLibrary()
         result = eagle.find_by_nhentai_id(gallery_id)
@@ -2503,14 +2538,19 @@ class HentaiFetcherBot(commands.Bot):
         except:
             pass
         
+        # 下載前先執行快速 reindex (首個 URL)
+        first_check = True
+        
         for url in parsed_urls:
             # 提取 gallery ID
             match = re.search(r'/g/(\d+)', url)
             if match:
                 gallery_id = match.group(1)
                 
-                # 先檢查是否已下載
-                exists, exist_info = check_already_downloaded(gallery_id)
+                # 先檢查是否已下載 (首個 URL 時觸發 reindex)
+                exists, exist_info = check_already_downloaded(gallery_id, do_reindex=first_check)
+                first_check = False  # 後續不再 reindex
+                
                 if exists:
                     already_exists.append((gallery_id, exist_info))
                     continue
@@ -2612,11 +2652,17 @@ async def dl_command(interaction: discord.Interaction, gallery_ids: str, force: 
     already_exists = []
     
     if not force:
+        # 下載前先執行快速 reindex (首個 URL)
+        first_check = True
+        
         for url in parsed_urls:
             match = re.search(r'/g/(\d+)', url)
             if match:
                 gallery_id = match.group(1)
-                exists, info = check_already_downloaded(gallery_id)
+                # 首個 URL 時觸發 reindex
+                exists, info = check_already_downloaded(gallery_id, do_reindex=first_check)
+                first_check = False
+                
                 if exists:
                     already_exists.append((gallery_id, info))
                 else:
@@ -3366,46 +3412,87 @@ async def fixcover_command(interaction: discord.Interaction):
         await interaction.channel.send(f"❌ 補充封面失敗: {e}")
 
 
-@bot.tree.command(name='cleanup', description='清除重複的資料夾')
+@bot.tree.command(name='cleanup', description='清除 imported 資料夾中已導入 Eagle 的項目')
 async def cleanup_command(interaction: discord.Interaction):
-    """清除重複的資料夾（有時間戳後綴的）"""
+    """清除 imported 資料夾中已導入到 Eagle 的項目"""
     await interaction.response.defer()
     
     try:
-        if not DOWNLOAD_DIR.exists():
-            await interaction.followup.send("📂 下載資料夾不存在")
+        # imported 資料夾路徑
+        imported_dir = Path(DOWNLOAD_DIR).parent / 'imported'
+        
+        if not imported_dir.exists():
+            await interaction.followup.send("📂 imported 資料夾不存在")
             return
         
-        # 找出有時間戳後綴的資料夾（格式：標題_時間戳）
-        import re
-        timestamp_pattern = re.compile(r'^(.+)_(\d{10})$')  # 10 位數時間戳
+        # 獲取 Eagle 索引
+        from eagle_library import EagleLibrary
+        eagle = EagleLibrary()
         
-        folders = [f for f in DOWNLOAD_DIR.iterdir() if f.is_dir()]
-        duplicates = []
+        # 先執行 reindex 確保索引最新
+        await interaction.followup.send("🔄 正在掃描並比對 Eagle Library...")
+        eagle.rebuild_index()
+        
+        folders = [f for f in imported_dir.iterdir() if f.is_dir()]
+        can_delete = []  # 可以刪除的資料夾 (已在 Eagle 中)
+        not_in_eagle = []  # 不在 Eagle 中的資料夾
         
         for folder in folders:
-            match = timestamp_pattern.match(folder.name)
-            if match:
-                original_name = match.group(1)
-                original_path = DOWNLOAD_DIR / original_name
-                
-                # 如果原始資料夾也存在，這個就是重複的
-                if original_path.exists() and original_path.is_dir():
-                    duplicates.append(folder)
+            folder_name = folder.name
+            
+            # 嘗試從資料夾名稱提取 gallery_id
+            gallery_id = None
+            
+            # 方式 1: 純數字資料夾名
+            if folder_name.isdigit():
+                gallery_id = folder_name
+            else:
+                # 方式 2: 從 metadata.json 讀取
+                metadata_path = folder / 'metadata.json'
+                if metadata_path.exists():
+                    try:
+                        with open(metadata_path, 'r', encoding='utf-8') as f:
+                            metadata = json.load(f)
+                            gallery_id = metadata.get('gallery_id') or metadata.get('nhentai_id')
+                    except:
+                        pass
+            
+            if gallery_id:
+                # 檢查是否在 Eagle 中
+                result = eagle.find_by_nhentai_id(str(gallery_id))
+                if result:
+                    can_delete.append((folder, gallery_id, result.get('title', '')[:30]))
+                else:
+                    not_in_eagle.append((folder, gallery_id))
+            else:
+                # 沒有 ID 的資料夾，用標題搜尋
+                results = eagle.find_by_title(folder_name[:50])
+                if results:
+                    can_delete.append((folder, None, folder_name[:30]))
+                else:
+                    not_in_eagle.append((folder, None))
         
-        if not duplicates:
-            await interaction.followup.send("✅ 沒有發現重複的資料夾")
+        if not can_delete:
+            msg = f"✅ 沒有可清除的項目\n"
+            msg += f"📁 imported 資料夾共 {len(folders)} 個項目\n"
+            msg += f"⚠️ 其中 {len(not_in_eagle)} 個尚未導入 Eagle"
+            await interaction.channel.send(msg)
             return
         
         # 顯示將要刪除的資料夾
-        msg = f"🔍 發現 {len(duplicates)} 個重複資料夾：\n"
-        for dup in duplicates[:10]:
-            msg += f"• `{dup.name}`\n"
-        if len(duplicates) > 10:
-            msg += f"... 還有 {len(duplicates) - 10} 個\n"
-        msg += "\n⚠️ 確定要刪除嗎？回覆 `確認` 或 `yes` 來執行刪除"
+        msg = f"🔍 發現 **{len(can_delete)}** 個已導入 Eagle 的項目可清除：\n\n"
+        for folder, gid, title in can_delete[:10]:
+            if gid:
+                msg += f"• `#{gid}` {title}\n"
+            else:
+                msg += f"• {title}\n"
+        if len(can_delete) > 10:
+            msg += f"... 還有 {len(can_delete) - 10} 個\n"
         
-        await interaction.followup.send(msg)
+        msg += f"\n📊 統計：已導入 {len(can_delete)} 個，未導入 {len(not_in_eagle)} 個"
+        msg += "\n\n⚠️ 確定要刪除嗎？回覆 `確認` 或 `yes` 來執行刪除"
+        
+        await interaction.channel.send(msg)
         
         # 等待確認
         def check(m):
@@ -3419,15 +3506,28 @@ async def cleanup_command(interaction: discord.Interaction):
         
         # 執行刪除
         deleted = 0
-        for dup in duplicates:
+        freed_size = 0
+        for folder, gid, title in can_delete:
             try:
-                shutil.rmtree(dup)
+                # 計算資料夾大小
+                folder_size = sum(f.stat().st_size for f in folder.rglob('*') if f.is_file())
+                freed_size += folder_size
+                
+                shutil.rmtree(folder)
                 deleted += 1
-                logger.info(f"已刪除重複資料夾: {dup.name}")
+                logger.info(f"已刪除已導入項目: {folder.name}")
             except Exception as e:
-                logger.error(f"刪除失敗 {dup.name}: {e}")
+                logger.error(f"刪除失敗 {folder.name}: {e}")
         
-        await interaction.channel.send(f"✅ 已刪除 {deleted}/{len(duplicates)} 個重複資料夾")
+        # 格式化釋放空間
+        if freed_size > 1024 * 1024 * 1024:
+            size_str = f"{freed_size / (1024*1024*1024):.2f} GB"
+        elif freed_size > 1024 * 1024:
+            size_str = f"{freed_size / (1024*1024):.1f} MB"
+        else:
+            size_str = f"{freed_size / 1024:.1f} KB"
+        
+        await interaction.channel.send(f"✅ 已清除 {deleted}/{len(can_delete)} 個項目\n💾 釋放空間: {size_str}")
         
     except Exception as e:
         logger.error(f"清除重複失敗: {e}")
@@ -3837,7 +3937,7 @@ async def help_command(interaction: discord.Interaction):
               "`/list` - 列出全部本子\n"
               "`/random [數量] [來源]` - 隨機抽\n"
               "`/fixcover` - 補充封面\n"
-              "`/cleanup` - 清除重複",
+              "`/cleanup` - 清除已導入項目",
         inline=True
     )
     

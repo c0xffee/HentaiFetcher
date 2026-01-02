@@ -48,7 +48,7 @@ class DownloadProgressView(BaseView):
     @ui.button(label="❌ 取消下載", style=discord.ButtonStyle.danger, custom_id="dl_cancel", row=0)
     async def cancel_button(self, interaction: discord.Interaction, button: ui.Button):
         """取消下載"""
-        from run import request_cancel
+        from run import request_cancel, cancel_events
         
         if self.cancelled:
             await interaction.response.send_message("⚠️ 下載已經被取消", ephemeral=True)
@@ -67,10 +67,12 @@ class DownloadProgressView(BaseView):
                 view=self
             )
         else:
-            await interaction.response.send_message(
-                "⚠️ 無法取消：下載可能已經完成或尚未開始",
-                ephemeral=True
-            )
+            # 顯示更詳細的錯誤資訊
+            registered_ids = list(cancel_events.keys())
+            debug_msg = f"⚠️ 無法取消 `#{self.gallery_id}`\n"
+            debug_msg += f"📝 當前註冊的下載: {registered_ids if registered_ids else '無'}\n"
+            debug_msg += "💡 可能原因: 下載已完成、尚未開始、或 Bot 已重啟"
+            await interaction.response.send_message(debug_msg, ephemeral=True)
     
     def disable_cancel(self):
         """禁用取消按鈕（下載完成時調用）"""

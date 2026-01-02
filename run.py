@@ -14,7 +14,7 @@ HentaiFetcher - Discord Bot 自動化漫畫下載器
 """
 
 # 版本號 - 用來確認容器是否更新
-VERSION = "3.3.0"
+VERSION = "3.3.6"
 
 print(f"[STARTUP] HentaiFetcher 版本 {VERSION} 正在載入...", flush=True)
 
@@ -3519,44 +3519,18 @@ async def cleanup_command(interaction: discord.Interaction):
             msg += f"... 還有 {len(can_delete) - 10} 個\n"
         
         msg += f"\n📊 統計：已導入 {len(can_delete)} 個，未導入 {len(not_in_eagle)} 個"
-        msg += "\n\n⚠️ 確定要刪除嗎？回覆 `確認` 或 `yes` 來執行刪除"
+        msg += "\n\n⚠️ **注意：只會刪除已確認導入 Eagle 的項目**"
+        msg += "\n💡 未導入的項目會被保留"
         
-        await interaction.channel.send(msg)
+        # 使用按鈕確認
+        from bot.views import CleanupConfirmView
+        view = CleanupConfirmView(
+            can_delete=can_delete,
+            not_in_eagle=not_in_eagle,
+            user_id=interaction.user.id
+        )
         
-        # 等待確認
-        def check(m):
-            return m.author.id == interaction.user.id and m.channel.id == interaction.channel_id and m.content.lower() in ['確認', 'yes', 'y']
-        
-        try:
-            confirm_msg = await bot.wait_for('message', timeout=30.0, check=check)
-        except:
-            await interaction.channel.send("⏰ 超時，取消操作")
-            return
-        
-        # 執行刪除
-        deleted = 0
-        freed_size = 0
-        for folder, gid, title in can_delete:
-            try:
-                # 計算資料夾大小
-                folder_size = sum(f.stat().st_size for f in folder.rglob('*') if f.is_file())
-                freed_size += folder_size
-                
-                shutil.rmtree(folder)
-                deleted += 1
-                logger.info(f"已刪除已導入項目: {folder.name}")
-            except Exception as e:
-                logger.error(f"刪除失敗 {folder.name}: {e}")
-        
-        # 格式化釋放空間
-        if freed_size > 1024 * 1024 * 1024:
-            size_str = f"{freed_size / (1024*1024*1024):.2f} GB"
-        elif freed_size > 1024 * 1024:
-            size_str = f"{freed_size / (1024*1024):.1f} MB"
-        else:
-            size_str = f"{freed_size / 1024:.1f} KB"
-        
-        await interaction.channel.send(f"✅ 已清除 {deleted}/{len(can_delete)} 個項目\n💾 釋放空間: {size_str}")
+        await interaction.channel.send(msg, view=view)
         
     except Exception as e:
         logger.error(f"清除重複失敗: {e}")

@@ -232,6 +232,35 @@ class EagleLibrary:
         
         return results
     
+    def get_all_items(self) -> List[Dict[str, Any]]:
+        """
+        獲取所有已匯入的項目（含完整資訊）
+        
+        Returns:
+            包含完整資訊的項目列表 (包括 folder_path, web_url, tags 等)
+        """
+        index = self._load_index()
+        imports = index.get("imports", {})
+        results = []
+        
+        for folder_name, entry in imports.items():
+            eagle_item_id = entry.get("eagleItemId")
+            
+            if eagle_item_id:
+                # 取得完整資訊
+                result = self.find_by_eagle_id(eagle_item_id)
+                if result:
+                    result["folder_name"] = folder_name
+                    result["title"] = entry.get("title", folder_name)
+                    result["nhentai_id"] = entry.get("nhentaiId")
+                    result["nhentai_url"] = entry.get("nhentaiUrl")
+                    result["tags"] = entry.get("tags", [])
+                    result["annotation"] = entry.get("annotation", "")
+                    result["imported_at"] = entry.get("importedAt")
+                    results.append(result)
+        
+        return results
+    
     def get_random(self, count: int = 1) -> List[Dict[str, Any]]:
         """
         隨機取得已匯入的項目

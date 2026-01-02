@@ -15,6 +15,7 @@ from .read_view import ReadDetailView
 from .random_view import RandomResultView
 from .download_view import DownloadCompleteView, DownloadProgressView
 from .list_view import PaginatedListView
+from .cleanup_view import CleanupConfirmView
 
 __all__ = [
     'BaseView',
@@ -25,4 +26,5 @@ __all__ = [
     'DownloadCompleteView',
     'DownloadProgressView',
     'PaginatedListView',
+    'CleanupConfirmView',
 ]

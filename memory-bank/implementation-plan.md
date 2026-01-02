@@ -57,6 +57,24 @@
 
 ## 📝 Changelog (變更日誌)
 
+### 2026-01-02 (v3.1.0)
+- **feat: `/random` 指令支援來源選擇**
+  - 新增 `source` 參數：`eagle`、`downloads`、`all`
+  - 預設從 Eagle Library 隨機
+  - 可選擇從下載資料夾或全部來源隨機
+  - 使用 `secrets` 模組提升隨機性
+- **feat: `/list` 指令顯示全部本子**
+  - 合併顯示 Eagle Library 和下載資料夾
+  - 🦅 表示 Eagle，📁 表示下載資料夾
+  - 顯示各來源統計數量
+- **feat: 批次下載完成總結**
+  - 多檔案下載完成後顯示統計
+  - 顯示成功/失敗數量
+  - 列出失敗的 Gallery ID
+- **fix: 改善隨機演算法**
+  - eagle_library.py 改用 `secrets.randbelow()` 
+  - 提供加密安全等級的隨機選取
+
 ### 2026-01-02
 - **feat: Eagle NAS Auto-Importer 插件**
   - 建立 `Eagle-Auto-Importer/` 插件目錄

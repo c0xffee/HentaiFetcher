@@ -1,9 +1,17 @@
 # Active Context
 
 ## Current Focus (目前焦點)
-- 斜線指令版本 v3.0.0 完成
+- 斜線指令版本 v3.1.0 - 功能增強
 
 ## Recent Changes (最近更動)
+- [x] 2026-01-02 `/random` 指令支援來源選擇
+  - 新增 `source` 參數：eagle、downloads、all
+  - 使用 `secrets` 模組提升隨機性
+- [x] 2026-01-02 `/list` 指令顯示全部本子
+  - 合併 Eagle Library 和下載資料夾
+  - 🦅/📁 來源標示
+- [x] 2026-01-02 批次下載完成總結
+  - 多檔下載完成後顯示統計 (成功/失敗)
 - [x] 2026-01-02 清理 on_message 處理邏輯
   - 移除舊的 `known_commands` 轉換邏輯
   - 移除 `!dl` 和 `!test` 傳統指令處理
@@ -19,9 +27,10 @@
   - `/dl` 指令加入 `force` 參數強制重新下載
 
 ## Next Steps (下一步)
-- [ ] 重新部署 Docker 並測試斜線指令
-- [ ] 測試完整下載 → PDF 生成流程
+- [ ] 重新部署 Docker 並測試新功能
+- [ ] 測試 `/random` 來源參數
+- [ ] 測試批次下載總結功能
 
 ## Notes (備註)
-- 專案版本：v3.0.0
+- 專案版本：v3.1.0
 - 主要程式：run.py

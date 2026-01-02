@@ -1,7 +1,7 @@
 {
   "webBaseUrlDownloads": "http://192.168.0.32:8888",
   "webBaseUrlEagle": "http://192.168.0.32:8889",
-  "lastUpdated": "2026-01-02T00:00:24.051Z",
+  "lastUpdated": "2026-01-02T08:33:53.552305Z",
   "imports": {
     "547997": {
       "eagleItemId": "MJW3NIYB71YA9",
@@ -688,6 +688,25 @@
       "title": "MJW3NCH0DGAXQ",
       "tags": [],
       "importedAt": 1767311520340
+    },
+    "(C91) [Number2 (たくじ)] Secret Lover ～秘密の恋人～ [中国翻訳]": {
+      "eagleItemId": "MJW3YVE3QPWTA",
+      "nhentaiId": "185223",
+      "nhentaiUrl": "https://nhentai.net/g/185223/",
+      "title": "(C91) [Number2 (たくじ)] Secret Lover ～秘密の恋人～ [中国翻訳]",
+      "tags": [
+        "artist:ohtomo takuji",
+        "group:number2",
+        "language:Chinese",
+        "swimsuit",
+        "group",
+        "cheating",
+        "harem",
+        "full color",
+        "stockings",
+        "type:doujinshi"
+      ],
+      "importedAt": 1767312051653
     }
   }
 }

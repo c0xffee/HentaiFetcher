@@ -85,8 +85,59 @@ logging.basicConfig(
 )
 logger = logging.getLogger('HentaiFetcher')
 
-# 下載佇列 - 結構: (url, channel_id, status_message_id)
+# 下載佇列 - 結構: (url, channel_id, status_message_id, force_mode, batch_id)
 download_queue: Queue = Queue()
+
+# 批次下載追蹤器 - 用於統計多檔案下載結果
+# 結構: {batch_id: {'total': int, 'success': int, 'failed': int, 'channel_id': int, 'gallery_ids': List[str]}}
+batch_tracker: Dict[str, Dict[str, Any]] = {}
+batch_lock = threading.Lock()
+
+def generate_batch_id() -> str:
+    """生成批次 ID"""
+    return f"B{int(datetime.now().timestamp() * 1000)}"
+
+def init_batch(batch_id: str, total: int, channel_id: int, gallery_ids: List[str]):
+    """初始化批次追蹤"""
+    with batch_lock:
+        batch_tracker[batch_id] = {
+            'total': total,
+            'success': 0,
+            'failed': 0,
+            'channel_id': channel_id,
+            'gallery_ids': gallery_ids,
+            'completed_ids': [],
+            'failed_ids': []
+        }
+
+def update_batch(batch_id: str, success: bool, gallery_id: str = None) -> Optional[Dict[str, Any]]:
+    """
+    更新批次狀態，如果完成則返回統計結果
+    
+    Returns:
+        如果批次完成，返回統計資訊；否則返回 None
+    """
+    with batch_lock:
+        if batch_id not in batch_tracker:
+            return None
+        
+        batch = batch_tracker[batch_id]
+        if success:
+            batch['success'] += 1
+            if gallery_id:
+                batch['completed_ids'].append(gallery_id)
+        else:
+            batch['failed'] += 1
+            if gallery_id:
+                batch['failed_ids'].append(gallery_id)
+        
+        # 檢查是否完成
+        if batch['success'] + batch['failed'] >= batch['total']:
+            result = batch.copy()
+            del batch_tracker[batch_id]
+            return result
+        
+        return None
 
 # 進度條設定
 PROGRESS_UPDATE_INTERVAL = 3  # 每 3 秒更新一次進度
@@ -515,6 +566,15 @@ def download_nhentai_first_page(gallery_id: str, save_path: Path) -> bool:
     except Exception as e:
         logger.error(f"下載第一頁錯誤: {e}")
         return False
+
+
+def natural_sort_key(s: str):
+    """
+    自然排序鍵函數 - 讓數字按數值大小排序
+    例如: 1.jpg, 2.jpg, 10.jpg 而不是 1.jpg, 10.jpg, 2.jpg
+    """
+    import re
+    return [int(text) if text.isdigit() else text.lower() for text in re.split(r'(\d+)', s)]
 
 
 def get_first_image_as_cover(folder_path: Path) -> bool:
@@ -1635,8 +1695,15 @@ class DownloadWorker(threading.Thread):
                 if task is None:
                     continue
                 
-                # 支援格式: (url, channel_id), (url, channel_id, status_msg_id), 或 (url, channel_id, status_msg_id, test_mode)
-                if len(task) == 4:
+                # 支援格式: 
+                # (url, channel_id)
+                # (url, channel_id, status_msg_id)
+                # (url, channel_id, status_msg_id, test_mode)
+                # (url, channel_id, status_msg_id, test_mode, batch_id)
+                batch_id = None
+                if len(task) == 5:
+                    url, channel_id, status_msg_id, test_mode, batch_id = task
+                elif len(task) == 4:
                     url, channel_id, status_msg_id, test_mode = task
                 elif len(task) == 3:
                     url, channel_id, status_msg_id = task
@@ -1654,9 +1721,11 @@ class DownloadWorker(threading.Thread):
                 pages = 0
                 title = ""
                 media_id = ""
+                current_gallery_id = None
                 match = re.search(r'/g/(\d+)', url)
                 if match:
-                    gallery_id = match.group(1)
+                    current_gallery_id = match.group(1)
+                    gallery_id = current_gallery_id
                     pages, title, media_id = get_nhentai_page_count(gallery_id)
                     if pages > 0:
                         # 發送開始下載訊息（包含頁數和預估時間），並返回訊息 ID
@@ -1697,6 +1766,16 @@ class DownloadWorker(threading.Thread):
                     self.send_result(channel_id, message),
                     self.bot.loop
                 )
+                
+                # 更新批次追蹤
+                if batch_id:
+                    batch_result = update_batch(batch_id, success, current_gallery_id)
+                    if batch_result:
+                        # 批次完成，發送總結
+                        asyncio.run_coroutine_threadsafe(
+                            self.send_batch_summary(batch_result),
+                            self.bot.loop
+                        )
                 
                 self.current_task = None
                 download_queue.task_done()
@@ -1969,6 +2048,52 @@ class DownloadWorker(threading.Thread):
         except Exception as e:
             logger.error(f"發送訊息失敗: {e}")
     
+    async def send_batch_summary(self, batch_result: Dict[str, Any]):
+        """發送批次下載完成總結"""
+        try:
+            channel = self.bot.get_channel(batch_result['channel_id'])
+            if not channel:
+                return
+            
+            total = batch_result['total']
+            success = batch_result['success']
+            failed = batch_result['failed']
+            
+            # 構建總結訊息
+            if failed == 0:
+                emoji = "🎉"
+                status = "全部成功"
+            elif success == 0:
+                emoji = "❌"
+                status = "全部失敗"
+            else:
+                emoji = "⚠️"
+                status = "部分完成"
+            
+            msg_lines = [
+                f"{emoji} **批次下載完成** - {status}",
+                f"",
+                f"📊 **統計結果**",
+                f"• 總計: {total} 個",
+                f"• ✅ 成功: {success} 個",
+                f"• ❌ 失敗: {failed} 個",
+            ]
+            
+            # 如果有失敗的，列出失敗的 ID
+            if batch_result.get('failed_ids'):
+                failed_ids = batch_result['failed_ids'][:10]  # 最多顯示 10 個
+                failed_list = ", ".join([f"`{gid}`" for gid in failed_ids])
+                msg_lines.append(f"")
+                msg_lines.append(f"❌ 失敗清單: {failed_list}")
+                if len(batch_result['failed_ids']) > 10:
+                    msg_lines.append(f"... 及其他 {len(batch_result['failed_ids']) - 10} 個")
+            
+            await channel.send("\n".join(msg_lines))
+            logger.info(f"批次下載完成: {success}/{total} 成功")
+            
+        except Exception as e:
+            logger.error(f"發送批次總結失敗: {e}")
+    
     def stop(self):
         """停止工作執行緒"""
         self.running = False
@@ -2106,14 +2231,18 @@ class HentaiFetcherBot(commands.Bot):
                 
                 if len(test_urls) == 1 and gallery_ids:
                     await message.channel.send(f"🧪 **#{gallery_ids[0]}** 已加入佇列（Test 模式）\n📊 佇列: {queue_size}")
+                    batch_id = None
                 else:
                     id_list = ", ".join([f"`{gid}`" for gid in gallery_ids[:10]])
                     await message.channel.send(f"🧪 **{len(gallery_ids)}** 個已加入佇列（Test 模式）\n🔢 {id_list}\n📊 佇列: {queue_size}")
+                    # 多個下載啟用批次追蹤
+                    batch_id = generate_batch_id()
+                    init_batch(batch_id, len(test_urls), message.channel.id, gallery_ids)
                 
                 for url in test_urls:
-                    download_queue.put((url, message.channel.id, None, True))
+                    download_queue.put((url, message.channel.id, None, True, batch_id))
                 
-                logger.info(f"[專用頻道] 新增 {len(test_urls)} 個 TEST 下載任務 (來自: {message.author})")
+                logger.info(f"[專用頻道] 新增 {len(test_urls)} 個 TEST 下載任務 (來自: {message.author})" + (f" [批次: {batch_id}]" if batch_id else ""))
                 return
             
             # 處理下載請求（直接貼號碼或網址）
@@ -2250,14 +2379,18 @@ class HentaiFetcherBot(commands.Bot):
             
             if len(test_urls) == 1 and gallery_ids:
                 await message.channel.send(f"🧪 **#{gallery_ids[0]}** 已加入佇列（Test 模式）\n📊 佇列: {queue_size}")
+                batch_id = None
             else:
                 id_list = ", ".join([f"`{gid}`" for gid in gallery_ids[:10]])
                 await message.channel.send(f"🧪 **{len(gallery_ids)}** 個已加入佇列（Test 模式）\n🔢 {id_list}\n📊 佇列: {queue_size}")
+                # 多個下載啟用批次追蹤
+                batch_id = generate_batch_id()
+                init_batch(batch_id, len(test_urls), message.channel.id, gallery_ids)
             
             for url in test_urls:
-                download_queue.put((url, message.channel.id, None, True))
+                download_queue.put((url, message.channel.id, None, True, batch_id))
             
-            logger.info(f"[專用頻道] 新增 {len(test_urls)} 個 TEST 下載任務 (來自: {message.author})")
+            logger.info(f"[專用頻道] 新增 {len(test_urls)} 個 TEST 下載任務 (來自: {message.author})" + (f" [批次: {batch_id}]" if batch_id else ""))
             return
         
         # 解析輸入
@@ -2328,14 +2461,19 @@ class HentaiFetcherBot(commands.Bot):
         # 加入有效的 URL
         if valid_urls:
             queue_size = download_queue.qsize() + len(valid_urls)
+            gallery_id_list = [gid for _, gid, _ in valid_urls]
             
             # 發送簡化的狀態訊息（只顯示號碼）
             if len(valid_urls) == 1:
                 _, gallery_id, _ = valid_urls[0]
                 await message.channel.send(f"📥 **#{gallery_id}** 已加入佇列\n📊 佇列: {queue_size}")
+                batch_id = None
             else:
                 id_list = ", ".join([f"`{gid}`" for _, gid, _ in valid_urls[:10]])
                 await message.channel.send(f"📥 **{len(valid_urls)}** 個已加入佇列\n🔢 {id_list}\n📊 佇列: {queue_size}")
+                # 多個下載啟用批次追蹤
+                batch_id = generate_batch_id()
+                init_batch(batch_id, len(valid_urls), message.channel.id, gallery_id_list)
             
             # 添加成功 reaction 到原始訊息
             try:
@@ -2343,11 +2481,11 @@ class HentaiFetcherBot(commands.Bot):
             except:
                 pass
             
-            # 加入佇列（不傳遞 status_msg_id，loading emoji 改在開始下載時顯示）
+            # 加入佇列（包含 batch_id）
             for url, gallery_id, title in valid_urls:
-                download_queue.put((url, message.channel.id, None))
+                download_queue.put((url, message.channel.id, None, False, batch_id))
             
-            logger.info(f"[專用頻道] 新增 {len(valid_urls)} 個下載任務 (來自: {message.author})")
+            logger.info(f"[專用頻道] 新增 {len(valid_urls)} 個下載任務 (來自: {message.author})" + (f" [批次: {batch_id}]" if batch_id else ""))
     
     async def on_command_error(self, ctx, error):
         """全域錯誤處理"""
@@ -2420,15 +2558,20 @@ async def dl_command(interaction: discord.Interaction, gallery_ids: str, force: 
     mode_str = "（強制模式）" if force else ""
     if len(new_urls) == 1 and gallery_id_list:
         await interaction.followup.send(f"📥 **#{gallery_id_list[0]}** 已加入佇列{mode_str}\n📊 佇列: {queue_size}")
+        # 單個下載不需要批次追蹤
+        batch_id = None
     else:
         id_list = ", ".join([f"`{gid}`" for gid in gallery_id_list[:10]])
         await interaction.followup.send(f"📥 **{len(gallery_id_list)}** 個已加入佇列{mode_str}\n🔢 {id_list}\n📊 佇列: {queue_size}")
+        # 多個下載啟用批次追蹤
+        batch_id = generate_batch_id()
+        init_batch(batch_id, len(new_urls), interaction.channel_id, gallery_id_list)
     
-    # 加入佇列
+    # 加入佇列（包含 batch_id）
     for url, _ in new_urls:
-        download_queue.put((url, interaction.channel_id, None, force))
+        download_queue.put((url, interaction.channel_id, None, force, batch_id))
     
-    logger.info(f"新增 {len(new_urls)} 個下載任務 (來自: {interaction.user})")
+    logger.info(f"新增 {len(new_urls)} 個下載任務 (來自: {interaction.user})" + (f" [批次: {batch_id}]" if batch_id else ""))
 
 
 @bot.tree.command(name='queue', description='查看下載佇列狀態')
@@ -2475,65 +2618,91 @@ async def status_command(interaction: discord.Interaction):
     await interaction.response.send_message(embed=embed)
 
 
-@bot.tree.command(name='list', description='列出所有已下載的本子')
+@bot.tree.command(name='list', description='列出所有已下載的本子（包含 Eagle Library）')
 async def list_command(interaction: discord.Interaction):
     """列出所有已下載的本子"""
     await interaction.response.defer()  # 可能需要較長時間
     
     try:
         from urllib.parse import quote
+        from eagle_library import EagleLibrary
         
-        if not DOWNLOAD_DIR.exists():
-            await interaction.followup.send("📂 下載資料夾不存在")
-            return
+        # 收集所有項目
+        items = []  # (gallery_id, name, source)
+        seen_ids = set()
         
-        # 獲取所有子資料夾
-        folders = [f for f in DOWNLOAD_DIR.iterdir() if f.is_dir()]
+        # 1. 從 Eagle Library 獲取
+        try:
+            eagle = EagleLibrary()
+            eagle_items = eagle.list_all()
+            for item in eagle_items:
+                nid = item.get('nhentai_id', '')
+                title = item.get('title', item.get('folder_name', ''))
+                if nid:
+                    seen_ids.add(nid)
+                    items.append((nid, title, 'eagle'))
+        except Exception as e:
+            logger.debug(f"Eagle Library 載入失敗: {e}")
         
-        if not folders:
-            await interaction.followup.send("📂 目前沒有任何下載")
-            return
-        
-        # 構建純文字訊息（分批發送以避免 2000 字元限制）
-        items = []
-        
-        for folder in folders:
-            folder_name = folder.name
+        # 2. 從 downloads 資料夾獲取（跳過已在 Eagle 中的）
+        if DOWNLOAD_DIR.exists():
+            folders = [f for f in DOWNLOAD_DIR.iterdir() if f.is_dir()]
             
-            # 嘗試從 metadata.json 獲取 gallery_id
-            metadata_path = folder / "metadata.json"
-            gallery_id = ""
-            if metadata_path.exists():
-                try:
-                    with open(metadata_path, 'r', encoding='utf-8') as f:
-                        metadata = json.load(f)
-                        # 優先從 gallery_id 獲取
-                        gallery_id = metadata.get('gallery_id', '')
-                        # 如果沒有，從 URL 提取
-                        if not gallery_id:
-                            url = metadata.get('url', '')
-                            match = re.search(r'/g/(\d+)', url)
-                            if match:
-                                gallery_id = match.group(1)
-                except:
-                    pass
-            
-            items.append((gallery_id, folder_name))
+            for folder in folders:
+                folder_name = folder.name
+                
+                # 嘗試從 metadata.json 獲取 gallery_id
+                metadata_path = folder / "metadata.json"
+                gallery_id = ""
+                title = folder_name
+                if metadata_path.exists():
+                    try:
+                        with open(metadata_path, 'r', encoding='utf-8') as f:
+                            metadata = json.load(f)
+                            # 優先從 gallery_id 獲取
+                            gallery_id = metadata.get('gallery_id', '')
+                            # 如果沒有，從 URL 提取
+                            if not gallery_id:
+                                url = metadata.get('url', '')
+                                match = re.search(r'/g/(\d+)', url)
+                                if match:
+                                    gallery_id = match.group(1)
+                            # 取得標題
+                            title = metadata.get('name', folder_name)
+                    except:
+                        pass
+                
+                # 只加入不在 Eagle 中的
+                if gallery_id and gallery_id not in seen_ids:
+                    items.append((gallery_id, title, 'downloads'))
+                    seen_ids.add(gallery_id)
+                elif not gallery_id:
+                    items.append(('', title, 'downloads'))
+        
+        if not items:
+            await interaction.followup.send("📂 目前沒有任何本子")
+            return
         
         # 按號碼排序（從小到大）
         items.sort(key=lambda x: int(x[0]) if x[0].isdigit() else 0)
         
+        # 統計來源數量
+        eagle_count = sum(1 for _, _, src in items if src == 'eagle')
+        downloads_count = sum(1 for _, _, src in items if src == 'downloads')
+        
         # 構建輸出
         msg_lines = []
-        for gallery_id, folder_name in items:
-            # 格式：`#號碼` 書名（不要連結）
+        for gallery_id, title, source in items:
+            # 格式：🦅/📁 `#號碼` 書名
+            source_emoji = "🦅" if source == 'eagle' else "📁"
             if gallery_id:
-                msg_lines.append(f"`#{gallery_id}` {folder_name}")
+                msg_lines.append(f"{source_emoji} `#{gallery_id}` {title[:50]}")
             else:
-                msg_lines.append(f"{folder_name}")
+                msg_lines.append(f"{source_emoji} {title[:50]}")
         
         # 發送第一條訊息
-        header = f"📚 **已下載的本子** (共 {len(folders)} 本)\n"
+        header = f"📚 **全部本子** (共 {len(items)} 本)\n"
+        header += f"🦅 Eagle: {eagle_count} | 📁 下載: {downloads_count}\n"
         await interaction.followup.send(header)
         
         current_batch = []
@@ -2555,13 +2724,86 @@ async def list_command(interaction: discord.Interaction):
             await interaction.channel.send("\n".join(current_batch))
         
     except Exception as e:
-        logger.error(f"列出下載失敗: {e}")
+        logger.error(f"列出失敗: {e}")
         await interaction.followup.send(f"❌ 列出失敗: {e}")
 
 
+def get_random_from_downloads(count: int = 1) -> List[Dict[str, Any]]:
+    """
+    從 downloads 資料夾隨機選取本子
+    
+    Args:
+        count: 要選取的數量
+    
+    Returns:
+        包含本子資訊的列表
+    """
+    import random
+    import secrets
+    
+    results = []
+    
+    if not DOWNLOAD_DIR.exists():
+        return results
+    
+    # 獲取所有有 metadata.json 的子資料夾
+    valid_folders = []
+    for folder in DOWNLOAD_DIR.iterdir():
+        if folder.is_dir():
+            metadata_path = folder / "metadata.json"
+            if metadata_path.exists():
+                valid_folders.append(folder)
+    
+    if not valid_folders:
+        return results
+    
+    # 限制數量
+    count = min(count, len(valid_folders))
+    
+    # 使用 secrets 模組進行加密安全的隨機選取（更加隨機）
+    selected_indices = set()
+    while len(selected_indices) < count:
+        idx = secrets.randbelow(len(valid_folders))
+        selected_indices.add(idx)
+    
+    selected_folders = [valid_folders[i] for i in selected_indices]
+    
+    for folder in selected_folders:
+        metadata_path = folder / "metadata.json"
+        try:
+            with open(metadata_path, 'r', encoding='utf-8') as f:
+                metadata = json.load(f)
+            
+            # 從 url 提取 gallery_id
+            url = metadata.get('url', '')
+            match = re.search(r'/g/(\d+)', url)
+            gallery_id = match.group(1) if match else folder.name
+            
+            results.append({
+                'title': metadata.get('name', folder.name),
+                'nhentai_id': gallery_id,
+                'tags': metadata.get('tags', []),
+                'folder_path': str(folder),
+                'url': url,
+                'source': 'downloads'
+            })
+        except Exception as e:
+            logger.debug(f"讀取 metadata 失敗 ({folder.name}): {e}")
+    
+    return results
+
+
 @bot.tree.command(name='random', description='隨機顯示本子')
-@app_commands.describe(count='顯示數量 (1-5)')
-async def random_command(interaction: discord.Interaction, count: int = 1):
+@app_commands.describe(
+    count='顯示數量 (1-5)',
+    source='來源：eagle=Eagle Library, downloads=下載資料夾, all=全部'
+)
+@app_commands.choices(source=[
+    app_commands.Choice(name='Eagle Library', value='eagle'),
+    app_commands.Choice(name='下載資料夾', value='downloads'),
+    app_commands.Choice(name='全部', value='all'),
+])
+async def random_command(interaction: discord.Interaction, count: int = 1, source: str = 'eagle'):
     """隨機顯示本子"""
     await interaction.response.defer()
     
@@ -2569,14 +2811,66 @@ async def random_command(interaction: discord.Interaction, count: int = 1):
         from eagle_library import EagleLibrary
         from pathlib import Path
         import re
-        
-        eagle = EagleLibrary()
+        import secrets
         
         # 限制數量
         count = max(1, min(count, 5))  # 1-5 本
         
-        # 從 Eagle Library 隨機選取
-        selected = eagle.get_random(count)
+        selected = []
+        
+        if source == 'eagle':
+            # 從 Eagle Library 隨機選取
+            eagle = EagleLibrary()
+            selected = eagle.get_random(count)
+            if not selected:
+                await interaction.followup.send("📂 Eagle Library 中沒有任何本子")
+                return
+        
+        elif source == 'downloads':
+            # 從 downloads 資料夾隨機選取
+            selected = get_random_from_downloads(count)
+            if not selected:
+                await interaction.followup.send("📂 下載資料夾中沒有任何本子")
+                return
+        
+        elif source == 'all':
+            # 從兩個來源合併後隨機選取
+            eagle = EagleLibrary()
+            eagle_items = eagle.list_all()
+            downloads_items = get_random_from_downloads(100)  # 先取得所有 downloads
+            
+            # 合併兩個來源（去重）
+            all_items = []
+            seen_ids = set()
+            
+            for item in eagle_items:
+                nid = item.get('nhentai_id')
+                if nid and nid not in seen_ids:
+                    seen_ids.add(nid)
+                    # 轉換格式以便後續處理
+                    eagle_result = eagle.find_by_nhentai_id(nid)
+                    if eagle_result:
+                        eagle_result['source'] = 'eagle'
+                        all_items.append(eagle_result)
+            
+            for item in downloads_items:
+                nid = item.get('nhentai_id')
+                if nid and nid not in seen_ids:
+                    seen_ids.add(nid)
+                    item['source'] = 'downloads'
+                    all_items.append(item)
+            
+            if not all_items:
+                await interaction.followup.send("📂 沒有任何本子可供選擇")
+                return
+            
+            # 使用 secrets 進行更隨機的選取
+            count = min(count, len(all_items))
+            selected_indices = set()
+            while len(selected_indices) < count:
+                idx = secrets.randbelow(len(all_items))
+                selected_indices.add(idx)
+            selected = [all_items[i] for i in selected_indices]
         
         if not selected:
             await interaction.followup.send("📂 Eagle Library 中沒有任何本子")
@@ -2627,10 +2921,16 @@ async def random_command(interaction: discord.Interaction, count: int = 1):
             # 構建資料訊息
             msg_lines = []
             
+            # 來源標記
+            item_source = item.get('source', 'eagle')
+            source_emoji = "🦅" if item_source == 'eagle' else "📁"
+            
             # 標題與連結
-            msg_lines.append(f"📖 **#{gallery_id}**")
+            msg_lines.append(f"{source_emoji} **#{gallery_id}**")
             if web_url:
                 msg_lines.append(f"📥 {web_url}")
+            elif item.get('url'):
+                msg_lines.append(f"🔗 {item.get('url')}")
             msg_lines.append(f"\n**{title}**\n")
             
             # 基本信息
@@ -3055,8 +3355,8 @@ async def help_command(interaction: discord.Interaction):
         name="📊 斜線指令",
         value="`/queue` - 查看佇列\n"
               "`/status` - Bot 狀態\n"
-              "`/list` - 列出已下載\n"
-              "`/random [數量]` - 隨機顯示\n"
+              "`/list` - 列出全部本子\n"
+              "`/random [數量] [來源]` - 隨機抽\n"
               "`/fixcover` - 補充封面\n"
               "`/cleanup` - 清除重複",
         inline=True

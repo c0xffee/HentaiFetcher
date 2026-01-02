@@ -211,7 +211,7 @@ class EagleLibrary:
         Returns:
             隨機選取的項目列表 (含完整資訊)
         """
-        import random
+        import secrets
         
         index = self._load_index()
         imports = index.get("imports", {})
@@ -222,8 +222,14 @@ class EagleLibrary:
         # 限制數量
         count = min(count, len(imports))
         
-        # 隨機選取
-        selected_keys = random.sample(list(imports.keys()), count)
+        # 使用 secrets 模組進行加密安全的隨機選取（更加隨機）
+        keys_list = list(imports.keys())
+        selected_indices = set()
+        while len(selected_indices) < count:
+            idx = secrets.randbelow(len(keys_list))
+            selected_indices.add(idx)
+        
+        selected_keys = [keys_list[i] for i in selected_indices]
         results = []
         
         for folder_name in selected_keys:

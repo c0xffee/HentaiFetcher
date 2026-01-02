@@ -1,16 +1,17 @@
 # Active Context
 
 ## Current Focus (目前焦點)
-- ✅ Discord UI 元件整合 v3.3.6 - Bug 修復與增強
+- ✅ Discord UI 元件整合 v3.3.7 - 多項重要修復
 
 ## Recent Changes (最近更動)
+- [x] 2026-01-03 v3.3.7 重要修復
+  - **修復 URL 超過 512 字符錯誤**: Discord Link Button 限制，使用 `build_safe_pdf_url()` 檢查並 fallback
+  - **統一詳情顯示模板**: 新增 `helpers.py` 包含 `show_item_detail()`，讓 random/list/search 用同一模板
+  - **cleanup 強化刪除機制**: 使用 `onerror=_remove_readonly` 處理 Windows 檔案鎖定
+  - **cleanup 顯示失敗數量**: 結果訊息包含刪除失敗數
+  - **程式碼大幅精簡**: 約 110 行重複程式碼改用統一函數
+  - **版本號更新至 3.3.7**
 - [x] 2026-01-03 v3.3.6 Bug 修復
-  - **新增 `EagleLibrary.get_all_items()`**: 修復隨機按鈕「沒有可抽選的作品」問題
-  - **取消下載錯誤訊息增強**: 顯示 debug 資訊（當前註冊的下載 ID）
-  - **`/cleanup` 改用按鈕確認**: 新增 CleanupConfirmView，取代文字輸入
-  - **cleanup 說明更清晰**: 明確說明「只刪除已導入 Eagle 的項目」
-  - **版本號更新至 3.3.6**
-- [x] 2026-01-03 多項修復與增強 (v3.3.5)
   - **ReadDetailView 同角色按鈕**: 新增 CharacterSearchButton 搜尋同角色作品
   - **修復 random_view ImportError**: 改用正確的 EagleLibrary + get_all_downloads_items
   - **統一詳情顯示**: list/random/search 選擇本本時顯示頁數和檔案大小

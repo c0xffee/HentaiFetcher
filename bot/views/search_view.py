@@ -19,7 +19,7 @@ from .base import BaseView, TIMEOUT_SECONDS
 
 logger = logging.getLogger('HentaiFetcher.views')
 
-PDF_WEB_BASE_URL = "http://192.168.0.32:8888"
+PDF_WEB_BASE_URL = "https://com1c.c0xffee.com"
 ITEMS_PER_PAGE = 10  # 每頁顯示數量
 
 

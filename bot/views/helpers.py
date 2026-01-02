@@ -15,7 +15,7 @@ import logging
 
 logger = logging.getLogger('HentaiFetcher.views')
 
-PDF_WEB_BASE_URL = "http://192.168.0.32:8888"
+PDF_WEB_BASE_URL = "https://com1c.c0xffee.com"
 DISCORD_URL_MAX_LENGTH = 512
 
 

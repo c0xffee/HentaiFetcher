@@ -23,7 +23,7 @@ logger = logging.getLogger('HentaiFetcher.views')
 
 # 每頁顯示數量
 ITEMS_PER_PAGE = 15
-PDF_WEB_BASE_URL = "http://192.168.0.32:8888"
+PDF_WEB_BASE_URL = "https://com1c.c0xffee.com"
 
 
 class PaginatedListView(BaseView):

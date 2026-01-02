@@ -53,7 +53,7 @@ class EagleLibrary:
             default_library_path = "//192.168.0.32/docker/Eagle/nHentai.library/images"
             default_index_path = "//192.168.0.32/docker/HentaiFetcher/imports-index.json"
         
-        default_web_url = "http://192.168.0.32:8889"
+        default_web_url = "https://comic.c0xffee.com"
         
         # 使用優先順序: 參數 > 環境變數 > 預設值
         self.library_images_path = Path(

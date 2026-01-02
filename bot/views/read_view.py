@@ -1,0 +1,385 @@
+"""
+Read Detail View - 詳情頁互動視圖
+==================================
+功能：
+- 開啟 PDF 按鈕
+- nhentai 連結按鈕  
+- 隨機一本按鈕
+- 同作者/同原作搜尋按鈕
+- Tag Select Menu 搜尋同標籤
+- 重新下載按鈕
+"""
+
+import discord
+from discord import ui
+from typing import List, Optional
+from urllib.parse import quote
+import logging
+
+from .base import BaseView, TIMEOUT_SECONDS
+
+logger = logging.getLogger('HentaiFetcher.views')
+
+PDF_WEB_BASE_URL = "http://192.168.0.32:8888"
+
+
+class TagSelectMenu(ui.Select):
+    """標籤選擇下拉選單"""
+    
+    def __init__(self, tags: List[str]):
+        options = []
+        
+        # 最多顯示 25 個標籤
+        for tag in tags[:25]:
+            # 清理標籤顯示
+            display_tag = tag[:50] if len(tag) > 50 else tag
+            options.append(discord.SelectOption(
+                label=display_tag,
+                value=tag,
+                emoji="🏷️"
+            ))
+        
+        if not options:
+            options.append(discord.SelectOption(
+                label="無可用標籤",
+                value="_none_"
+            ))
+        
+        super().__init__(
+            placeholder="🏷️ 選擇標籤搜尋同類作品...",
+            min_values=1,
+            max_values=1,
+            options=options,
+            custom_id="tag_select",
+            row=2
+        )
+    
+    async def callback(self, interaction: discord.Interaction):
+        """選擇標籤後搜尋"""
+        selected_tag = self.values[0]
+        
+        if selected_tag == "_none_":
+            await interaction.response.send_message("❌ 無可用標籤", ephemeral=True)
+            return
+        
+        await interaction.response.defer()
+        
+        try:
+            # 執行搜尋
+            from run import search_in_downloads, get_all_downloads_items, PDF_WEB_BASE_URL
+            from eagle_library import EagleLibrary
+            
+            results = []
+            
+            # 搜尋 Eagle
+            try:
+                eagle = EagleLibrary()
+                eagle_results = eagle.find_by_tag(selected_tag)
+                for r in eagle_results:
+                    r['source'] = 'eagle'
+                    results.append(r)
+            except Exception as e:
+                logger.debug(f"Eagle 搜尋錯誤: {e}")
+            
+            # 搜尋 Downloads
+            for item in get_all_downloads_items():
+                item_tags = item.get('tags', [])
+                if selected_tag in item_tags:
+                    if not any(r.get('nhentai_id') == item.get('nhentai_id') for r in results):
+                        results.append(item)
+            
+            if not results:
+                await interaction.followup.send(f"🔍 找不到包含標籤 `{selected_tag}` 的作品")
+                return
+            
+            # 顯示結果
+            from .search_view import SearchResultView
+            
+            total = len(results)
+            display_results = results[:10]
+            
+            embed = discord.Embed(
+                title=f"🏷️ 標籤搜尋 - `{selected_tag}`",
+                description=f"找到 {total} 個結果" + (f"（顯示前 10 個）" if total > 10 else ""),
+                color=discord.Color.purple()
+            )
+            
+            for i, r in enumerate(display_results, 1):
+                title = r.get('title', '未知')
+                if len(title) > 50:
+                    title = title[:47] + "..."
+                
+                gallery_id = r.get('nhentai_id', 'N/A')
+                item_source = r.get('source', 'eagle')
+                source_emoji = "🦅" if item_source == 'eagle' else "📁"
+                
+                embed.add_field(
+                    name=f"{source_emoji} {i}. {title}",
+                    value=f"📖 ID: `{gallery_id}`",
+                    inline=False
+                )
+            
+            view = SearchResultView(display_results, selected_tag)
+            await interaction.followup.send(embed=embed, view=view)
+            
+        except Exception as e:
+            logger.error(f"標籤搜尋失敗: {e}", exc_info=True)
+            await interaction.followup.send(f"❌ 搜尋失敗: {e}", ephemeral=True)
+
+
+class ReadDetailView(BaseView):
+    """詳情頁互動視圖"""
+    
+    def __init__(
+        self,
+        gallery_id: str,
+        title: str,
+        item_source: str = "eagle",
+        web_url: str = "",
+        artists: List[str] = None,
+        parodies: List[str] = None,
+        other_tags: List[str] = None,
+        *,
+        timeout: float = TIMEOUT_SECONDS
+    ):
+        super().__init__(timeout=timeout)
+        
+        self.gallery_id = gallery_id
+        self.title = title
+        self.item_source = item_source
+        self.web_url = web_url
+        self.artists = artists or []
+        self.parodies = parodies or []
+        self.other_tags = other_tags or []
+        
+        # Row 0: 主要按鈕
+        # 開啟 PDF 按鈕 (Link Button)
+        if item_source == 'eagle' and web_url:
+            pdf_button = ui.Button(
+                label="📄 開啟 PDF",
+                style=discord.ButtonStyle.link,
+                url=web_url,
+                row=0
+            )
+            self.add_item(pdf_button)
+        elif item_source == 'downloads':
+            pdf_url = f"{PDF_WEB_BASE_URL}/{quote(gallery_id)}/{quote(gallery_id)}.pdf"
+            pdf_button = ui.Button(
+                label="📄 開啟 PDF",
+                style=discord.ButtonStyle.link,
+                url=pdf_url,
+                row=0
+            )
+            self.add_item(pdf_button)
+        
+        # nhentai 連結
+        nhentai_url = f"https://nhentai.net/g/{gallery_id}/"
+        nhentai_button = ui.Button(
+            label="🔗 nhentai",
+            style=discord.ButtonStyle.link,
+            url=nhentai_url,
+            row=0
+        )
+        self.add_item(nhentai_button)
+        
+        # Row 1: 搜尋相關按鈕
+        if self.artists:
+            self.add_item(ArtistSearchButton(self.artists[0]))
+        
+        if self.parodies and self.parodies[0] != 'original':
+            self.add_item(ParodySearchButton(self.parodies[0]))
+        
+        # Row 2: Tag Select Menu
+        if self.other_tags:
+            self.add_item(TagSelectMenu(self.other_tags))
+        
+        # Row 3: 其他操作
+        self.add_item(RedownloadButton(gallery_id))
+        self.add_item(RandomButton())
+
+
+class ArtistSearchButton(ui.Button):
+    """搜尋同作者按鈕"""
+    
+    def __init__(self, artist: str):
+        self.artist = artist
+        super().__init__(
+            label=f"🔍 同作者: {artist[:20]}",
+            style=discord.ButtonStyle.secondary,
+            custom_id=f"artist_search:{artist[:50]}",
+            row=1
+        )
+    
+    async def callback(self, interaction: discord.Interaction):
+        await interaction.response.defer()
+        
+        try:
+            from run import search_in_downloads, get_all_downloads_items
+            from eagle_library import EagleLibrary
+            
+            results = []
+            search_tag = f"artist:{self.artist}"
+            
+            # 搜尋 Eagle
+            try:
+                eagle = EagleLibrary()
+                eagle_results = eagle.find_by_tag(search_tag)
+                for r in eagle_results:
+                    r['source'] = 'eagle'
+                    results.append(r)
+            except Exception:
+                pass
+            
+            # 搜尋 Downloads
+            for item in get_all_downloads_items():
+                item_tags = item.get('tags', [])
+                if search_tag in item_tags:
+                    if not any(r.get('nhentai_id') == item.get('nhentai_id') for r in results):
+                        results.append(item)
+            
+            if not results:
+                await interaction.followup.send(f"🔍 找不到作者 `{self.artist}` 的其他作品")
+                return
+            
+            from .search_view import SearchResultView
+            
+            embed = discord.Embed(
+                title=f"✍️ 同作者搜尋 - `{self.artist}`",
+                description=f"找到 {len(results)} 個結果",
+                color=discord.Color.blue()
+            )
+            
+            for i, r in enumerate(results[:10], 1):
+                title = r.get('title', '未知')[:50]
+                gallery_id = r.get('nhentai_id', 'N/A')
+                source_emoji = "🦅" if r.get('source') == 'eagle' else "📁"
+                
+                embed.add_field(
+                    name=f"{source_emoji} {i}. {title}",
+                    value=f"📖 ID: `{gallery_id}`",
+                    inline=False
+                )
+            
+            view = SearchResultView(results[:10], f"artist:{self.artist}")
+            await interaction.followup.send(embed=embed, view=view)
+            
+        except Exception as e:
+            await interaction.followup.send(f"❌ 搜尋失敗: {e}", ephemeral=True)
+
+
+class ParodySearchButton(ui.Button):
+    """搜尋同原作按鈕"""
+    
+    def __init__(self, parody: str):
+        self.parody = parody
+        super().__init__(
+            label=f"🔍 同原作: {parody[:20]}",
+            style=discord.ButtonStyle.secondary,
+            custom_id=f"parody_search:{parody[:50]}",
+            row=1
+        )
+    
+    async def callback(self, interaction: discord.Interaction):
+        await interaction.response.defer()
+        
+        try:
+            from run import get_all_downloads_items
+            from eagle_library import EagleLibrary
+            
+            results = []
+            search_tag = f"parody:{self.parody}"
+            
+            # 搜尋 Eagle
+            try:
+                eagle = EagleLibrary()
+                eagle_results = eagle.find_by_tag(search_tag)
+                for r in eagle_results:
+                    r['source'] = 'eagle'
+                    results.append(r)
+            except Exception:
+                pass
+            
+            # 搜尋 Downloads
+            for item in get_all_downloads_items():
+                item_tags = item.get('tags', [])
+                if search_tag in item_tags:
+                    if not any(r.get('nhentai_id') == item.get('nhentai_id') for r in results):
+                        results.append(item)
+            
+            if not results:
+                await interaction.followup.send(f"🔍 找不到原作 `{self.parody}` 的其他作品")
+                return
+            
+            from .search_view import SearchResultView
+            
+            embed = discord.Embed(
+                title=f"🎬 同原作搜尋 - `{self.parody}`",
+                description=f"找到 {len(results)} 個結果",
+                color=discord.Color.orange()
+            )
+            
+            for i, r in enumerate(results[:10], 1):
+                title = r.get('title', '未知')[:50]
+                gallery_id = r.get('nhentai_id', 'N/A')
+                source_emoji = "🦅" if r.get('source') == 'eagle' else "📁"
+                
+                embed.add_field(
+                    name=f"{source_emoji} {i}. {title}",
+                    value=f"📖 ID: `{gallery_id}`",
+                    inline=False
+                )
+            
+            view = SearchResultView(results[:10], f"parody:{self.parody}")
+            await interaction.followup.send(embed=embed, view=view)
+            
+        except Exception as e:
+            await interaction.followup.send(f"❌ 搜尋失敗: {e}", ephemeral=True)
+
+
+class RedownloadButton(ui.Button):
+    """重新下載按鈕"""
+    
+    def __init__(self, gallery_id: str):
+        self.gallery_id = gallery_id
+        super().__init__(
+            label="📥 重新下載",
+            style=discord.ButtonStyle.danger,
+            custom_id=f"redownload:{gallery_id}",
+            row=3
+        )
+    
+    async def callback(self, interaction: discord.Interaction):
+        await interaction.response.defer()
+        
+        try:
+            from run import download_queue, generate_batch_id
+            
+            url = f"https://nhentai.net/g/{self.gallery_id}/"
+            
+            # 加入下載佇列 (force=True)
+            download_queue.put((url, interaction.channel_id, None, True, None))
+            
+            await interaction.followup.send(
+                f"📥 已加入下載佇列 (強制重新下載): `{self.gallery_id}`",
+                ephemeral=True
+            )
+        except Exception as e:
+            await interaction.followup.send(f"❌ 操作失敗: {e}", ephemeral=True)
+
+
+class RandomButton(ui.Button):
+    """隨機一本按鈕"""
+    
+    def __init__(self):
+        super().__init__(
+            label="🔀 隨機一本",
+            style=discord.ButtonStyle.primary,
+            custom_id="random_one",
+            row=3
+        )
+    
+    async def callback(self, interaction: discord.Interaction):
+        await interaction.response.send_message(
+            "💡 請使用 `/random` 指令來隨機抽選",
+            ephemeral=True
+        )

@@ -1,16 +1,24 @@
 # Active Context
 
 ## Current Focus (目前焦點)
-- 🎮 Discord UI 元件整合規劃 - Phase 3
+- 🎮 Discord UI 元件整合 v3.3.0 - Phase 3 實作中
 
 ## Recent Changes (最近更動)
+- [x] 2026-01-02 實作 Discord UI Views (Phase 3.1-3.5)
+  - 建立 `bot/views/` 模組結構
+  - `base.py` - 持久化 View 基礎類別 (5分鐘超時)
+  - `search_view.py` - SearchResultView (Select Menu → /read)
+  - `read_view.py` - ReadDetailView (Tag Select + 操作按鈕)
+  - `random_view.py` - RandomResultView (再抽一次等按鈕)
+  - `download_view.py` - DownloadCompleteView (下載完成按鈕)
+  - `eagle_library.py` 新增 `find_by_tag()` 方法
+  - `/search` 整合 SearchResultView
+  - `/read` 整合 ReadDetailView + Tag 選擇
+  - `/random` 整合 RandomResultView
+  - 下載完成訊息整合 DownloadCompleteView
+  - 更新 `/help` 說明加入互動按鈕提示
+  - 版本升級 3.2.0 → 3.3.0
 - [x] 2026-01-02 規劃 Discord UI 元件整合方案
-  - 設計 Persistent Views (持久化按鈕)
-  - 設計 SearchResultView (Select Menu 選擇 → /read)
-  - 設計 ReadDetailView (Tag Select Menu 搜尋同類)
-  - 設計 RandomResultView / DownloadCompleteView
-  - 更新 implementation-plan.md 新增 Phase 3
-  - 更新 techContext.md 新增 UI 元件規劃
 - [x] 2026-01-02 修復評論解析 + 顯示全部 metadata
   - `parse_annotation_comments()` 正確解析用戶名和評論內容
   - 顯示格式：`**[用戶名] (時間)**` + 評論內容

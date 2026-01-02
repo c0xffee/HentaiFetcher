@@ -14,7 +14,7 @@ HentaiFetcher - Discord Bot 自動化漫畫下載器
 """
 
 # 版本號 - 用來確認容器是否更新
-VERSION = "3.2.0"
+VERSION = "3.3.0"
 
 print(f"[STARTUP] HentaiFetcher 版本 {VERSION} 正在載入...", flush=True)
 
@@ -1758,7 +1758,7 @@ class DownloadWorker(threading.Thread):
                 # 更新開始下載訊息（顯示最終狀態）
                 if start_msg_id:
                     asyncio.run_coroutine_threadsafe(
-                        self.update_final_progress(channel_id, start_msg_id, success, pages, title, media_id),
+                        self.update_final_progress(channel_id, start_msg_id, success, pages, title, gallery_id),
                         self.bot.loop
                     )
                 
@@ -1965,7 +1965,7 @@ class DownloadWorker(threading.Thread):
             logger.error(f"更新 PDF 進度訊息失敗: {e}")
     
     async def update_final_progress(self, channel_id: int, message_id: int, 
-                                    success: bool, total: int, title: str, media_id: str = ""):
+                                    success: bool, total: int, title: str, gallery_id: str = ""):
         """更新最終進度狀態"""
         try:
             channel = self.bot.get_channel(channel_id)
@@ -1979,7 +1979,18 @@ class DownloadWorker(threading.Thread):
             # 更新訊息內容和表情
             if success:
                 progress_bar = create_progress_bar(total, total)
-                await message.edit(content=f"✅ 下載完成\n📖 {title}\n{progress_bar}\n({total}/{total})")
+                
+                # 建立下載完成互動視圖
+                from bot.views import DownloadCompleteView
+                view = DownloadCompleteView(
+                    gallery_id=gallery_id if gallery_id else "unknown",
+                    title=title
+                )
+                
+                await message.edit(
+                    content=f"✅ 下載完成\n📖 {title}\n{progress_bar}\n({total}/{total})",
+                    view=view
+                )
                 await message.add_reaction('✅')
             else:
                 await message.add_reaction('❌')
@@ -3203,8 +3214,19 @@ async def random_command(interaction: discord.Interaction, count: int = 1, sourc
             if len(final_msg) > 1900:
                 final_msg = final_msg[:1900] + "..."
             
+            # 建立隨機結果互動視圖
+            from bot.views import RandomResultView
+            view = RandomResultView(
+                gallery_id=gallery_id,
+                title=title,
+                item_source=item_source,
+                web_url=web_url,
+                artists=artists,
+                source_filter=source
+            )
+            
             # 確保封面已發送才發資訊（順序正確）
-            await interaction.channel.send(final_msg)
+            await interaction.channel.send(final_msg, view=view)
     
     except ImportError:
         await interaction.followup.send("❌ Eagle Library 模組未安裝")
@@ -3478,8 +3500,12 @@ async def search_command(
                     inline=False
                 )
             
-            embed.set_footer(text="使用 /read <ID> 查看完整資訊")
-            await interaction.followup.send(embed=embed)
+            embed.set_footer(text="⬇️ 使用下方選單選擇作品")
+            
+            # 加入搜尋結果互動視圖
+            from bot.views import SearchResultView
+            view = SearchResultView(display_results, query, source)
+            await interaction.followup.send(embed=embed, view=view)
         else:
             # 詳細模式：類似 random 的顯示方式
             await interaction.followup.send(f"🔍 **{source_label}** 中找到 {total} 個結果 - {search_type}")
@@ -3671,10 +3697,22 @@ async def read_command(interaction: discord.Interaction, nhentai_id: str):
         if len(final_msg) > 1900:
             final_msg = final_msg[:1900] + "..."
         
+        # 建立詳情頁互動視圖
+        from bot.views import ReadDetailView
+        view = ReadDetailView(
+            gallery_id=nhentai_id,
+            title=title,
+            item_source=item_source,
+            web_url=web_url,
+            artists=artists,
+            parodies=parodies,
+            other_tags=other_tags
+        )
+        
         if cover_sent:
-            await interaction.channel.send(final_msg)
+            await interaction.channel.send(final_msg, view=view)
         else:
-            await interaction.followup.send(final_msg)
+            await interaction.followup.send(final_msg, view=view)
         
     except Exception as e:
         logger.error(f"讀取失敗: {e}")
@@ -3794,7 +3832,9 @@ async def help_command(interaction: discord.Interaction):
         value="`/search <關鍵字> [來源]` - 搜尋\n"
               "`/read <ID>` - 取得 PDF 連結\n"
               "`/eagle` - Library 統計\n"
-              "`/reindex` - 重建索引",
+              "`/reindex` - 重建索引\n"
+              "━━━━━━━━━━━━\n"
+              "🎮 **互動按鈕**: 搜尋/詳情頁支援點擊操作",
         inline=True
     )
     

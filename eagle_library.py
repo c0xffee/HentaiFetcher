@@ -184,6 +184,37 @@ class EagleLibrary:
         
         return results
     
+    def find_by_tag(self, tag: str) -> List[Dict[str, Any]]:
+        """
+        用標籤搜尋 PDF
+        
+        Args:
+            tag: 標籤名稱 (完整匹配，如 "artist:sky" 或 "gyaru")
+        
+        Returns:
+            符合條件的結果列表
+        """
+        index = self._load_index()
+        results = []
+        
+        tag_lower = tag.lower()
+        for folder_name, entry in index.get("imports", {}).items():
+            tags = entry.get("tags", [])
+            # 檢查是否有匹配的標籤 (不區分大小寫)
+            if any(tag_lower == t.lower() for t in tags):
+                eagle_item_id = entry.get("eagleItemId")
+                if eagle_item_id:
+                    result = self.find_by_eagle_id(eagle_item_id)
+                    if result:
+                        result["title"] = entry.get("title", folder_name)
+                        result["nhentai_id"] = entry.get("nhentaiId")
+                        result["nhentai_url"] = entry.get("nhentaiUrl")
+                        result["tags"] = tags
+                        result["annotation"] = entry.get("annotation", "")
+                        results.append(result)
+        
+        return results
+    
     def list_all(self) -> List[Dict[str, Any]]:
         """列出所有已匯入的項目"""
         index = self._load_index()

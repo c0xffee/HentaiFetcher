@@ -14,7 +14,7 @@ HentaiFetcher - Discord Bot 自動化漫畫下載器
 """
 
 # 版本號 - 用來確認容器是否更新
-VERSION = "3.1.0"
+VERSION = "3.2.0"
 
 print(f"[STARTUP] HentaiFetcher 版本 {VERSION} 正在載入...", flush=True)
 
@@ -2745,7 +2745,7 @@ async def list_command(interaction: discord.Interaction):
         # 最後發送統計資訊
         stats_lines = [
             f"",
-            f"────────────────────",
+            f"",
             f"📊 **統計資訊**",
             f"• 🦅 Eagle Library: **{eagle_count}** 本",
             f"• 📁 下載資料夾: **{downloads_count}** 本",
@@ -2756,6 +2756,145 @@ async def list_command(interaction: discord.Interaction):
     except Exception as e:
         logger.error(f"列出失敗: {e}")
         await interaction.followup.send(f"❌ 列出失敗: {e}")
+
+
+def get_all_downloads_items() -> List[Dict[str, Any]]:
+    """
+    獲取 downloads 資料夾中所有本子的資訊
+    
+    Returns:
+        包含本子資訊的列表
+    """
+    results = []
+    
+    if not DOWNLOAD_DIR.exists():
+        return results
+    
+    for folder in DOWNLOAD_DIR.iterdir():
+        if not folder.is_dir():
+            continue
+        
+        metadata_path = folder / "metadata.json"
+        if not metadata_path.exists():
+            continue
+        
+        try:
+            with open(metadata_path, 'r', encoding='utf-8') as f:
+                metadata = json.load(f)
+            
+            # 從 url 提取 gallery_id
+            url = metadata.get('url', '')
+            match = re.search(r'/g/(\d+)', url)
+            gallery_id = match.group(1) if match else folder.name
+            
+            results.append({
+                'title': metadata.get('name', folder.name),
+                'nhentai_id': gallery_id,
+                'tags': metadata.get('tags', []),
+                'folder_path': str(folder),
+                'url': url,
+                'annotation': metadata.get('annotation', ''),
+                'source': 'downloads'
+            })
+        except Exception as e:
+            logger.debug(f"讀取 metadata 失敗 ({folder.name}): {e}")
+    
+    return results
+
+
+def search_in_downloads(query: str) -> List[Dict[str, Any]]:
+    """
+    在 downloads 資料夾中搜尋本子
+    
+    Args:
+        query: 搜尋關鍵字（支援 ID、標題、作者、原作等）
+    
+    Returns:
+        符合條件的本子列表
+    """
+    import unicodedata
+    
+    all_items = get_all_downloads_items()
+    results = []
+    
+    # 標準化查詢字串（移除空白、轉小寫）
+    query_normalized = unicodedata.normalize('NFKC', query.lower().strip())
+    query_parts = query_normalized.split()  # 分割成多個關鍵字
+    
+    for item in all_items:
+        # 構建可搜尋的文字
+        searchable_parts = [
+            item.get('title', ''),
+            item.get('nhentai_id', ''),
+            ' '.join(item.get('tags', [])),
+            item.get('annotation', '')
+        ]
+        searchable_text = unicodedata.normalize('NFKC', ' '.join(searchable_parts).lower())
+        
+        # 檢查是否所有關鍵字都匹配
+        if all(part in searchable_text for part in query_parts):
+            results.append(item)
+    
+    return results
+
+
+def find_item_by_id(gallery_id: str) -> Optional[Dict[str, Any]]:
+    """
+    用 ID 在雙來源中查找本子
+    
+    Args:
+        gallery_id: nhentai Gallery ID
+    
+    Returns:
+        找到的本子資訊，或 None
+    """
+    # 1. 先查 Eagle Library
+    try:
+        from eagle_library import EagleLibrary
+        eagle = EagleLibrary()
+        result = eagle.find_by_nhentai_id(gallery_id)
+        if result:
+            result['source'] = 'eagle'
+            return result
+    except:
+        pass
+    
+    # 2. 再查 downloads 資料夾
+    all_downloads = get_all_downloads_items()
+    for item in all_downloads:
+        if item.get('nhentai_id') == gallery_id:
+            return item
+    
+    return None
+
+
+def parse_annotation_comments(annotation: str) -> List[str]:
+    """
+    從 annotation 中提取用戶評論
+    
+    Args:
+        annotation: metadata 中的 annotation 字串
+    
+    Returns:
+        評論列表
+    """
+    comments = []
+    if not annotation:
+        return comments
+    
+    # 查找評論區塊
+    if '💬 用戶評論:' in annotation:
+        comment_section = annotation.split('💬 用戶評論:')[1]
+        # 到下一個 emoji 標記或結尾
+        for line in comment_section.split('\n'):
+            line = line.strip()
+            if line and not line.startswith(('⏰', '📥')):
+                if line.startswith('[') and ']' in line:
+                    comments.append(line)
+            elif line.startswith(('⏰', '📥')):
+                break
+    
+    return comments[:3]  # 最多 3 則評論
 
 
 def get_random_from_downloads(count: int = 1) -> List[Dict[str, Any]]:
@@ -2966,12 +3105,12 @@ async def random_command(interaction: discord.Interaction, count: int = 1, sourc
             # 號碼
             msg_lines.append(f"{source_emoji} **#{gallery_id}**")
             
-            # 標題內嵌連結
+            # 標題內嵌連結 (emoji 在連結外部以確保 markdown 格式正確)
             if item_source == 'eagle' and web_url:
-                msg_lines.append(f"[📖 **{title}**]({web_url})")
+                msg_lines.append(f"📖 [{title}]({web_url})")
             elif item_source == 'downloads' and gallery_id:
                 pdf_web_url = f"{PDF_WEB_BASE_URL}/{quote(str(gallery_id))}/{quote(str(gallery_id))}.pdf"
-                msg_lines.append(f"[📖 **{title}**]({pdf_web_url})")
+                msg_lines.append(f"📖 [{title}]({pdf_web_url})")
             else:
                 msg_lines.append(f"📖 **{title}**")
             
@@ -3003,9 +3142,20 @@ async def random_command(interaction: discord.Interaction, count: int = 1, sourc
             if types:
                 msg_lines.append(f"📁 類型: {', '.join(types)}")
             
-            # nhentai 連結 (備用)
-            if item.get('url'):
-                msg_lines.append(f"🔗 nhentai: {item.get('url')}")
+            # 使用者評論 (從 annotation 中提取)
+            annotation = item.get('annotation', '')
+            if annotation:
+                comments = parse_annotation_comments(annotation)
+                if comments:
+                    msg_lines.append("")
+                    msg_lines.append("💬 評論:")
+                    for comment in comments[:3]:  # 最多顯示 3 則
+                        # 截斷過長評論
+                        if len(comment) > 100:
+                            comment = comment[:100] + "..."
+                        msg_lines.append(f"  • {comment}")
+                    if len(comments) > 3:
+                        msg_lines.append(f"  ... 還有 {len(comments)-3} 則評論")
             
             # Tags (去除已顯示的前綴 tags)
             if other_tags:
@@ -3184,78 +3334,189 @@ async def cleanup_command(interaction: discord.Interaction):
 
 # ==================== Eagle Library 搜尋指令 ====================
 
-@bot.tree.command(name='search', description='搜尋 Eagle Library 中的本子')
-@app_commands.describe(query='搜尋關鍵字或 nhentai ID')
-async def search_command(interaction: discord.Interaction, query: str):
-    """搜尋 Eagle Library 中的本子"""
+@bot.tree.command(name='search', description='搜尋本子 (Eagle Library + 下載資料夾)')
+@app_commands.describe(
+    query='搜尋關鍵字或 nhentai ID',
+    source='搜尋來源 (預設: all)'
+)
+@app_commands.choices(source=[
+    app_commands.Choice(name="全部", value="all"),
+    app_commands.Choice(name="Eagle Library", value="eagle"),
+    app_commands.Choice(name="下載資料夾", value="downloads"),
+])
+async def search_command(
+    interaction: discord.Interaction, 
+    query: str,
+    source: str = "all"
+):
+    """搜尋本子 (支援雙來源)"""
     await interaction.response.defer()
     
     try:
-        from eagle_library import EagleLibrary
-        eagle = EagleLibrary()
-        
-        # 判斷是 ID 還是關鍵字
         query = query.strip()
         results = []
         
+        # 搜尋 Eagle Library
+        if source in ['all', 'eagle']:
+            try:
+                from eagle_library import EagleLibrary
+                eagle = EagleLibrary()
+                
+                if query.isdigit():
+                    result = eagle.find_by_nhentai_id(query)
+                    if result:
+                        result['source'] = 'eagle'
+                        results.append(result)
+                else:
+                    eagle_results = eagle.find_by_title(query)
+                    for r in eagle_results:
+                        r['source'] = 'eagle'
+                        results.append(r)
+            except Exception as e:
+                logger.debug(f"Eagle 搜尋錯誤: {e}")
+        
+        # 搜尋 downloads 資料夾
+        if source in ['all', 'downloads']:
+            if query.isdigit():
+                # 用 ID 搜尋
+                for item in get_all_downloads_items():
+                    if item.get('nhentai_id') == query:
+                        # 避免重複（Eagle 已經有這個 ID）
+                        if not any(r.get('nhentai_id') == query and r.get('source') == 'eagle' for r in results):
+                            results.append(item)
+            else:
+                # 用關鍵字搜尋
+                download_results = search_in_downloads(query)
+                for item in download_results:
+                    # 避免 ID 重複
+                    item_id = item.get('nhentai_id')
+                    if not any(r.get('nhentai_id') == item_id for r in results):
+                        results.append(item)
+        
+        # 顯示搜尋類型
         if query.isdigit():
-            # 用 nhentai ID 搜尋
-            result = eagle.find_by_nhentai_id(query)
-            if result:
-                results = [result]
-            search_type = f"nhentai ID `{query}`"
+            search_type = f"ID `{query}`"
         else:
-            # 用關鍵字搜尋
-            results = eagle.find_by_title(query)
-            search_type = f"關鍵字 `{query}`"
+            search_type = f"`{query}`"
+        
+        source_label = {"all": "全部", "eagle": "Eagle", "downloads": "下載區"}.get(source, source)
         
         if not results:
-            await interaction.followup.send(f"🔍 找不到符合 {search_type} 的結果")
+            await interaction.followup.send(f"🔍 在 **{source_label}** 中找不到符合 {search_type} 的結果")
             return
         
-        # 限制顯示數量
         total = len(results)
-        results = results[:10]
+        display_results = results[:10]
         
-        embed = discord.Embed(
-            title=f"🔍 搜尋結果 - {search_type}",
-            description=f"找到 {total} 個結果" + (f"（顯示前 10 個）" if total > 10 else ""),
-            color=discord.Color.blue()
-        )
+        # 判斷是否使用精簡模式 (超過 5 個結果)
+        compact_mode = total > 5
         
-        for i, r in enumerate(results, 1):
-            title = r.get('title', '未知')
-            if len(title) > 50:
-                title = title[:47] + "..."
-            
-            nhentai_id = r.get('nhentai_id', 'N/A')
-            web_url = r.get('web_url', '')
-            
-            # 建立欄位內容
-            value = f"📖 ID: `{nhentai_id}`\n"
-            if web_url:
-                value += f"🔗 [開啟 PDF]({web_url})"
-            
-            embed.add_field(
-                name=f"{i}. {title}",
-                value=value,
-                inline=False
+        if compact_mode:
+            # 精簡模式：使用 embed
+            embed = discord.Embed(
+                title=f"🔍 搜尋結果 - {search_type}",
+                description=f"**{source_label}** 中找到 {total} 個結果" + (f"（顯示前 10 個）" if total > 10 else ""),
+                color=discord.Color.blue()
             )
+            
+            for i, r in enumerate(display_results, 1):
+                title = r.get('title', '未知')
+                if len(title) > 50:
+                    title = title[:47] + "..."
+                
+                gallery_id = r.get('nhentai_id', 'N/A')
+                web_url = r.get('web_url', '')
+                item_source = r.get('source', 'eagle')
+                source_emoji = "🦅" if item_source == 'eagle' else "📁"
+                
+                # 建立連結
+                if item_source == 'eagle' and web_url:
+                    link = f"[開啟 PDF]({web_url})"
+                elif item_source == 'downloads' and gallery_id:
+                    pdf_url = f"{PDF_WEB_BASE_URL}/{quote(str(gallery_id))}/{quote(str(gallery_id))}.pdf"
+                    link = f"[開啟 PDF]({pdf_url})"
+                else:
+                    link = "無連結"
+                
+                embed.add_field(
+                    name=f"{source_emoji} {i}. {title}",
+                    value=f"📖 ID: `{gallery_id}` | {link}",
+                    inline=False
+                )
+            
+            embed.set_footer(text="使用 /read <ID> 查看完整資訊")
+            await interaction.followup.send(embed=embed)
+        else:
+            # 詳細模式：類似 random 的顯示方式
+            await interaction.followup.send(f"🔍 **{source_label}** 中找到 {total} 個結果 - {search_type}")
+            
+            for item in display_results:
+                title = item.get('title', '未知')
+                gallery_id = item.get('nhentai_id', '未知')
+                web_url = item.get('web_url', '')
+                tags = item.get('tags', [])
+                folder_path = item.get('folder_path', '')
+                item_source = item.get('source', 'eagle')
+                
+                # 解析 tags
+                artists = [tag.replace('artist:', '') for tag in tags if isinstance(tag, str) and tag.startswith('artist:')]
+                parodies = [tag.replace('parody:', '') for tag in tags if isinstance(tag, str) and tag.startswith('parody:')]
+                
+                # 發送封面
+                cover_sent = False
+                if folder_path:
+                    try:
+                        folder = Path(folder_path)
+                        for cover_name in ['cover.jpg', 'cover.png', 'cover.webp', 'thumbnail.png']:
+                            cover_path = folder / cover_name
+                            if cover_path.exists():
+                                file = discord.File(str(cover_path), filename=cover_name)
+                                await interaction.channel.send(file=file)
+                                cover_sent = True
+                                break
+                        
+                        if not cover_sent:
+                            for ext in ['*.jpg', '*.jpeg', '*.png', '*.webp']:
+                                images = list(folder.glob(ext))
+                                if images:
+                                    images.sort(key=lambda x: x.name)
+                                    file = discord.File(str(images[0]), filename=images[0].name)
+                                    await interaction.channel.send(file=file)
+                                    cover_sent = True
+                                    break
+                    except Exception as e:
+                        logger.debug(f"封面發送失敗: {e}")
+                
+                # 發送資訊
+                msg_lines = []
+                source_emoji = "🦅" if item_source == 'eagle' else "📁"
+                msg_lines.append(f"{source_emoji} **#{gallery_id}**")
+                
+                # 標題連結
+                if item_source == 'eagle' and web_url:
+                    msg_lines.append(f"📖 [{title}]({web_url})")
+                elif item_source == 'downloads' and gallery_id:
+                    pdf_url = f"{PDF_WEB_BASE_URL}/{quote(str(gallery_id))}/{quote(str(gallery_id))}.pdf"
+                    msg_lines.append(f"📖 [{title}]({pdf_url})")
+                else:
+                    msg_lines.append(f"📖 **{title}**")
+                
+                if artists:
+                    msg_lines.append(f"✍️ {', '.join(artists)}")
+                if parodies:
+                    msg_lines.append(f"🎬 {', '.join(parodies)}")
+                
+                await interaction.channel.send("\n".join(msg_lines))
         
-        embed.set_footer(text="使用 /read <ID> 直接取得連結")
-        await interaction.followup.send(embed=embed)
-        
-    except ImportError:
-        await interaction.followup.send("❌ Eagle Library 模組未安裝")
     except Exception as e:
         logger.error(f"搜尋失敗: {e}")
         await interaction.followup.send(f"❌ 搜尋失敗: {e}")
 
 
-@bot.tree.command(name='read', description='取得本子的 PDF 連結')
+@bot.tree.command(name='read', description='取得本子的 PDF 連結 (支援 Eagle + 下載區)')
 @app_commands.describe(nhentai_id='nhentai ID 或網址')
 async def read_command(interaction: discord.Interaction, nhentai_id: str):
-    """取得本子的 PDF 連結"""
+    """取得本子的 PDF 連結 (支援雙來源)"""
     await interaction.response.defer()
     
     # 清理輸入
@@ -3270,48 +3531,123 @@ async def read_command(interaction: discord.Interaction, nhentai_id: str):
             return
     
     try:
-        from eagle_library import EagleLibrary
-        eagle = EagleLibrary()
-        
-        result = eagle.find_by_nhentai_id(nhentai_id)
+        # 使用雙來源查詢
+        result = find_item_by_id(nhentai_id)
         
         if not result:
-            await interaction.followup.send(f"🔍 找不到 nhentai ID `{nhentai_id}` 的本子\n💡 可能尚未匯入 Eagle，請先使用 `/dl {nhentai_id}` 下載")
+            await interaction.followup.send(
+                f"🔍 找不到 ID `{nhentai_id}` 的本子\n"
+                f"💡 可能尚未下載，請使用 `/dl {nhentai_id}` 下載"
+            )
             return
         
         title = result.get('title', '未知')
         web_url = result.get('web_url', '')
-        nhentai_url = result.get('nhentai_url', f"https://nhentai.net/g/{nhentai_id}/")
         tags = result.get('tags', [])
+        folder_path = result.get('folder_path', '')
+        item_source = result.get('source', 'eagle')
+        annotation = result.get('annotation', '')
         
-        embed = discord.Embed(
-            title=f"📖 {title}",
-            color=discord.Color.green()
-        )
+        # 解析 tags
+        artists = [tag.replace('artist:', '') for tag in tags if isinstance(tag, str) and tag.startswith('artist:')]
+        parodies = [tag.replace('parody:', '') for tag in tags if isinstance(tag, str) and tag.startswith('parody:')]
+        groups = [tag.replace('group:', '') for tag in tags if isinstance(tag, str) and tag.startswith('group:')]
+        languages = [tag.replace('language:', '') for tag in tags if isinstance(tag, str) and tag.startswith('language:')]
+        characters = [tag.replace('character:', '') for tag in tags if isinstance(tag, str) and tag.startswith('character:')]
+        types = [tag.replace('type:', '') for tag in tags if isinstance(tag, str) and tag.startswith('type:')]
+        other_tags = [tag for tag in tags if isinstance(tag, str) and not any(tag.startswith(prefix) for prefix in ['artist:', 'parody:', 'group:', 'language:', 'character:', 'type:'])]
         
-        embed.add_field(name="🔢 nhentai ID", value=f"`{nhentai_id}`", inline=True)
-        embed.add_field(name="🌐 nhentai", value=f"[開啟]({nhentai_url})", inline=True)
+        # 發送封面
+        cover_sent = False
+        if folder_path:
+            try:
+                folder = Path(folder_path)
+                for cover_name in ['cover.jpg', 'cover.png', 'cover.webp', 'thumbnail.png']:
+                    cover_path = folder / cover_name
+                    if cover_path.exists():
+                        file = discord.File(str(cover_path), filename=cover_name)
+                        await interaction.followup.send(file=file)
+                        cover_sent = True
+                        break
+                
+                if not cover_sent:
+                    for ext in ['*.jpg', '*.jpeg', '*.png', '*.webp']:
+                        images = list(folder.glob(ext))
+                        if images:
+                            images.sort(key=lambda x: x.name)
+                            file = discord.File(str(images[0]), filename=images[0].name)
+                            await interaction.followup.send(file=file)
+                            cover_sent = True
+                            break
+            except Exception as e:
+                logger.debug(f"封面發送失敗: {e}")
         
-        if web_url:
-            embed.add_field(name="📄 PDF", value=f"[開啟閱讀]({web_url})", inline=True)
+        # 建立資訊訊息
+        msg_lines = []
+        source_emoji = "🦅" if item_source == 'eagle' else "📁"
         
-        # 顯示部分標籤
-        if tags:
-            # 過濾並顯示主要標籤
-            display_tags = [t for t in tags[:8] if not t.startswith(('type:', 'language:'))]
-            if display_tags:
-                embed.add_field(
-                    name="🏷️ 標籤",
-                    value=" ".join([f"`{t}`" for t in display_tags[:6]]),
-                    inline=False
-                )
+        msg_lines.append(f"{source_emoji} **#{nhentai_id}**")
         
-        embed.set_footer(text="點擊 PDF 連結即可在瀏覽器中閱讀")
+        # 標題連結
+        if item_source == 'eagle' and web_url:
+            msg_lines.append(f"📖 [{title}]({web_url})")
+        elif item_source == 'downloads':
+            pdf_url = f"{PDF_WEB_BASE_URL}/{quote(nhentai_id)}/{quote(nhentai_id)}.pdf"
+            msg_lines.append(f"📖 [{title}]({pdf_url})")
+        else:
+            msg_lines.append(f"📖 **{title}**")
         
-        await interaction.followup.send(embed=embed)
+        msg_lines.append("")
         
-    except ImportError:
-        await interaction.followup.send("❌ Eagle Library 模組未安裝")
+        # 來源
+        msg_lines.append(f"📦 來源: {'Eagle Library' if item_source == 'eagle' else '下載資料夾'}")
+        
+        # 基本資訊
+        if artists:
+            msg_lines.append(f"✍️ 作者: {', '.join(artists)}")
+        if groups:
+            msg_lines.append(f"👥 社團: {', '.join(groups)}")
+        if parodies:
+            msg_lines.append(f"🎬 原作: {', '.join(parodies)}")
+        if languages:
+            msg_lines.append(f"🌐 語言: {', '.join(languages)}")
+        if characters:
+            msg_lines.append(f"👤 角色: {', '.join(characters[:5])}")
+            if len(characters) > 5:
+                msg_lines.append(f"  ... 及其他 {len(characters)-5} 位")
+        if types:
+            msg_lines.append(f"📁 類型: {', '.join(types)}")
+        
+        # 使用者評論
+        if annotation:
+            comments = parse_annotation_comments(annotation)
+            if comments:
+                msg_lines.append("")
+                msg_lines.append("💬 評論:")
+                for comment in comments[:3]:
+                    if len(comment) > 100:
+                        comment = comment[:100] + "..."
+                    msg_lines.append(f"  • {comment}")
+                if len(comments) > 3:
+                    msg_lines.append(f"  ... 還有 {len(comments)-3} 則評論")
+        
+        # 標籤
+        if other_tags:
+            msg_lines.append("")
+            msg_lines.append(f"🏷️ 標籤: {', '.join([f'`{tag}`' for tag in other_tags[:15]])}")
+            if len(other_tags) > 15:
+                msg_lines.append(f"`... +{len(other_tags)-15} more`")
+        
+        # 發送資訊
+        final_msg = "\n".join(msg_lines)
+        if len(final_msg) > 1900:
+            final_msg = final_msg[:1900] + "..."
+        
+        if cover_sent:
+            await interaction.channel.send(final_msg)
+        else:
+            await interaction.followup.send(final_msg)
+        
     except Exception as e:
         logger.error(f"讀取失敗: {e}")
         await interaction.followup.send(f"❌ 讀取失敗: {e}")
@@ -3426,8 +3762,8 @@ async def help_command(interaction: discord.Interaction):
     )
     
     embed.add_field(
-        name="🦅 Eagle Library",
-        value="`/search <關鍵字>` - 搜尋本子\n"
+        name="🦅 Eagle + 下載區",
+        value="`/search <關鍵字> [來源]` - 搜尋\n"
               "`/read <ID>` - 取得 PDF 連結\n"
               "`/eagle` - Library 統計\n"
               "`/reindex` - 重建索引",

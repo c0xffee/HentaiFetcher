@@ -113,23 +113,8 @@ class RandomResultView(BaseView):
             
             artists = [tag.replace('artist:', '') for tag in tags if isinstance(tag, str) and tag.startswith('artist:')]
             
-            # 使用統一詳細模板顯示 (show_cover=True 會發送封面)
+            # 使用統一詳細模板顯示 (show_cover=True 會發送封面，並附帶 ReadDetailView 按鈕)
             await show_item_detail(interaction, gallery_id, show_cover=True)
-            
-            # 建立新的 View
-            safe_web_url = web_url if len(web_url) <= DISCORD_URL_MAX_LENGTH else ""
-            
-            new_view = RandomResultView(
-                gallery_id=gallery_id,
-                title=title,
-                item_source=item_source,
-                web_url=safe_web_url,
-                artists=artists,
-                source_filter=self.source_filter
-            )
-            
-            # 發送按鈕 (不再重複發送訊息，show_item_detail 已發送詳細資訊)
-            await interaction.channel.send("⬆️ 點擊按鈕繼續操作", view=new_view)
             
         except Exception as e:
             logger.error(f"隨機一本失敗: {e}", exc_info=True)

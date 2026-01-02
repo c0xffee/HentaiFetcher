@@ -3,17 +3,18 @@
 """
 HentaiFetcher - Discord Bot 自動化漫畫下載器
 ==============================================
-版本: 2.0.1 - 2024-12-30 多行輸入修復版
+版本: 3.0.0 - 斜線指令版本
 功能：
-1. Discord Bot 監聯 !dl 指令（支援多個網址或號碼）
+1. Discord Bot 使用斜線指令 (/dl, /search, /read 等)
 2. 使用 gallery-dl 下載圖片與 metadata
-3. 使用 img2pdf 轉換為無損 PDF
+3. 使用 Pillow 轉換為等寬 PDF
 4. 生成 Eagle 相容的 metadata.json
 5. 自動清理原始圖片檔案
+6. 整合 Eagle Library 查詢
 """
 
 # 版本號 - 用來確認容器是否更新
-VERSION = "2.9.0"
+VERSION = "3.0.0"
 
 print(f"[STARTUP] HentaiFetcher 版本 {VERSION} 正在載入...", flush=True)
 
@@ -35,6 +36,7 @@ from typing import Optional, Dict, Any, List
 
 import discord
 from discord.ext import commands
+from discord import app_commands
 
 # 載入 .env 檔案（本地測試用）
 try:
@@ -1998,6 +2000,13 @@ class HentaiFetcherBot(commands.Bot):
         self.worker = DownloadWorker(self)
         self.worker.start()
         logger.info("Bot setup 完成，下載執行緒已啟動")
+        
+        # 同步斜線指令
+        try:
+            synced = await self.tree.sync()
+            logger.info(f"已同步 {len(synced)} 個斜線指令")
+        except Exception as e:
+            logger.error(f"同步斜線指令失敗: {e}")
     
     async def on_ready(self):
         """Bot 連線成功時觸發"""
@@ -2458,31 +2467,98 @@ class HentaiFetcherBot(commands.Bot):
 bot = HentaiFetcherBot()
 
 
-# ==================== 傳統指令 ====================
+# ==================== 斜線指令 ====================
 
-@bot.command(name='queue', aliases=['q'])
-async def queue_command(ctx):
-    """查看下載佇列：!queue 或 !q"""
+@bot.tree.command(name='dl', description='下載 nhentai 本子')
+@app_commands.describe(
+    gallery_ids='一個或多個 nhentai 號碼，用空格分隔',
+    force='強制重新下載（跳過重複檢查）'
+)
+async def dl_command(interaction: discord.Interaction, gallery_ids: str, force: bool = False):
+    """下載 nhentai 本子"""
+    await interaction.response.defer()
+    
+    # 解析輸入
+    parsed_urls = parse_input_to_urls(gallery_ids)
+    
+    if not parsed_urls:
+        await interaction.followup.send("⚠️ 無法解析輸入。請提供有效的 nhentai 號碼。")
+        return
+    
+    # 如果不是強制模式，檢查重複
+    new_urls = []
+    already_exists = []
+    
+    if not force:
+        for url in parsed_urls:
+            match = re.search(r'/g/(\d+)', url)
+            if match:
+                gallery_id = match.group(1)
+                exists, info = check_already_downloaded(gallery_id)
+                if exists:
+                    already_exists.append((gallery_id, info))
+                else:
+                    new_urls.append((url, gallery_id))
+            else:
+                new_urls.append((url, None))
+        
+        # 回報已存在的項目
+        if already_exists:
+            if len(already_exists) == 1:
+                gid, info = already_exists[0]
+                title = info.get('title', '')[:40]
+                web_url = info.get('web_url', '')
+                await interaction.followup.send(f"📚 **#{gid}** 已存在\n📖 {title}\n🔗 {web_url}")
+            else:
+                exist_list = "\n".join([f"• `{gid}`: {info.get('title', '')[:30]}" for gid, info in already_exists[:5]])
+                await interaction.followup.send(f"📚 **{len(already_exists)}** 個已存在（跳過）:\n{exist_list}")
+        
+        if not new_urls:
+            return
+    else:
+        new_urls = [(url, re.search(r'/g/(\d+)', url).group(1) if re.search(r'/g/(\d+)', url) else None) for url in parsed_urls]
+    
+    # 加入佇列
+    queue_size = download_queue.qsize() + len(new_urls)
+    gallery_id_list = [gid for _, gid in new_urls if gid]
+    
+    mode_str = "（強制模式）" if force else ""
+    if len(new_urls) == 1 and gallery_id_list:
+        await interaction.followup.send(f"📥 **#{gallery_id_list[0]}** 已加入佇列{mode_str}\n📊 佇列: {queue_size}")
+    else:
+        id_list = ", ".join([f"`{gid}`" for gid in gallery_id_list[:10]])
+        await interaction.followup.send(f"📥 **{len(gallery_id_list)}** 個已加入佇列{mode_str}\n🔢 {id_list}\n📊 佇列: {queue_size}")
+    
+    # 加入佇列
+    for url, _ in new_urls:
+        download_queue.put((url, interaction.channel_id, None, force))
+    
+    logger.info(f"新增 {len(new_urls)} 個下載任務 (來自: {interaction.user})")
+
+
+@bot.tree.command(name='queue', description='查看下載佇列狀態')
+async def queue_command(interaction: discord.Interaction):
+    """查看下載佇列"""
     size = download_queue.qsize()
-    await ctx.send(f"📊 佇列中等待任務: {size}")
+    await interaction.response.send_message(f"📊 佇列中等待任務: {size}")
 
 
-@bot.command(name='ping')
-async def ping_command(ctx):
-    """測試連線：!ping"""
+@bot.tree.command(name='ping', description='測試機器人連線')
+async def ping_command(interaction: discord.Interaction):
+    """測試連線"""
     latency = round(bot.latency * 1000)
-    await ctx.send(f"🏓 Pong! 延遲: {latency}ms")
+    await interaction.response.send_message(f"🏓 Pong! 延遲: {latency}ms")
 
 
-@bot.command(name='version', aliases=['v', 'ver'])
-async def version_command(ctx):
-    """顯示版本：!version 或 !v"""
-    await ctx.send(f"📦 HentaiFetcher 版本: **{VERSION}**")
+@bot.tree.command(name='version', description='顯示機器人版本')
+async def version_command(interaction: discord.Interaction):
+    """顯示版本"""
+    await interaction.response.send_message(f"📦 HentaiFetcher 版本: **{VERSION}**")
 
 
-@bot.command(name='status')
-async def status_command(ctx):
-    """顯示狀態：!status"""
+@bot.tree.command(name='status', description='顯示機器人狀態')
+async def status_command(interaction: discord.Interaction):
+    """顯示狀態"""
     embed = discord.Embed(
         title="📊 HentaiFetcher Status",
         color=discord.Color.blue()
@@ -2499,26 +2575,28 @@ async def status_command(ctx):
     else:
         embed.add_field(name="目前下載", value="⏳ 等待中", inline=True)
     
-    embed.set_footer(text="使用 !dl <號碼或網址> 開始下載")
+    embed.set_footer(text="使用 /dl <號碼> 開始下載")
     
-    await ctx.send(embed=embed)
+    await interaction.response.send_message(embed=embed)
 
 
-@bot.command(name='list', aliases=['ls'])
-async def list_command(ctx):
-    """列出所有已下載的本子：!list"""
+@bot.tree.command(name='list', description='列出所有已下載的本子')
+async def list_command(interaction: discord.Interaction):
+    """列出所有已下載的本子"""
+    await interaction.response.defer()  # 可能需要較長時間
+    
     try:
         from urllib.parse import quote
         
         if not DOWNLOAD_DIR.exists():
-            await ctx.send("📂 下載資料夾不存在")
+            await interaction.followup.send("📂 下載資料夾不存在")
             return
         
         # 獲取所有子資料夾
         folders = [f for f in DOWNLOAD_DIR.iterdir() if f.is_dir()]
         
         if not folders:
-            await ctx.send("📂 目前沒有任何下載")
+            await interaction.followup.send("📂 目前沒有任何下載")
             return
         
         # 構建純文字訊息（分批發送以避免 2000 字元限制）
@@ -2559,9 +2637,9 @@ async def list_command(ctx):
             else:
                 msg_lines.append(f"{folder_name}")
         
-        # 分批發送（每批最多 1800 字元）
+        # 發送第一條訊息
         header = f"📚 **已下載的本子** (共 {len(folders)} 本)\n"
-        await ctx.send(header)
+        await interaction.followup.send(header)
         
         current_batch = []
         current_length = 0
@@ -2570,7 +2648,7 @@ async def list_command(ctx):
             line_length = len(line) + 1  # +1 for newline
             if current_length + line_length > 1800:
                 # 發送當前批次
-                await ctx.send("\n".join(current_batch))
+                await interaction.channel.send("\n".join(current_batch))
                 current_batch = [line]
                 current_length = line_length
             else:
@@ -2579,16 +2657,19 @@ async def list_command(ctx):
         
         # 發送最後一批
         if current_batch:
-            await ctx.send("\n".join(current_batch))
+            await interaction.channel.send("\n".join(current_batch))
         
     except Exception as e:
         logger.error(f"列出下載失敗: {e}")
-        await ctx.send(f"❌ 列出失敗: {e}")
+        await interaction.followup.send(f"❌ 列出失敗: {e}")
 
 
-@bot.command(name='random', aliases=['rand', 'r'])
-async def random_command(ctx, count: int = 1):
-    """隨機顯示本子：!random [數量]"""
+@bot.tree.command(name='random', description='隨機顯示本子')
+@app_commands.describe(count='顯示數量 (1-5)')
+async def random_command(interaction: discord.Interaction, count: int = 1):
+    """隨機顯示本子"""
+    await interaction.response.defer()
+    
     try:
         from eagle_library import EagleLibrary
         from pathlib import Path
@@ -2603,7 +2684,7 @@ async def random_command(ctx, count: int = 1):
         selected = eagle.get_random(count)
         
         if not selected:
-            await ctx.send("📂 Eagle Library 中沒有任何本子")
+            await interaction.followup.send("📂 Eagle Library 中沒有任何本子")
             return
         
         for item in selected:
@@ -2630,7 +2711,7 @@ async def random_command(ctx, count: int = 1):
                         cover_path = folder_path / cover_name
                         if cover_path.exists():
                             file = discord.File(str(cover_path), filename=cover_name)
-                            await ctx.send(file=file)
+                            await interaction.channel.send(file=file)
                             cover_sent = True
                             logger.info(f"發送封面: {cover_name}")
                             break
@@ -2642,7 +2723,7 @@ async def random_command(ctx, count: int = 1):
                             if images:
                                 images.sort(key=lambda x: x.name)
                                 file = discord.File(str(images[0]), filename=images[0].name)
-                                await ctx.send(file=file)
+                                await interaction.channel.send(file=file)
                                 cover_sent = True
                                 break
                 except Exception as e:
@@ -2681,24 +2762,26 @@ async def random_command(ctx, count: int = 1):
             final_msg = "\n".join(msg_lines)
             if len(final_msg) > 1900:
                 final_msg = final_msg[:1900] + "..."
-            await ctx.send(final_msg)
+            await interaction.followup.send(final_msg)
     
     except ImportError:
-        await ctx.send("❌ Eagle Library 模組未安裝")
+        await interaction.followup.send("❌ Eagle Library 模組未安裝")
     except Exception as e:
         logger.error(f"隨機顯示失敗: {e}")
-        await ctx.send(f"❌ 隨機顯示失敗: {e}")
+        await interaction.followup.send(f"❌ 隨機顯示失敗: {e}")
 
 
-@bot.command(name='fixcover', aliases=['fc', 'addcover'])
-async def fixcover_command(ctx):
-    """為已有的本子補充封面（從 nhentai 下載或使用第一張圖片）：!fixcover"""
+@bot.tree.command(name='fixcover', description='為已下載的本子補充封面')
+async def fixcover_command(interaction: discord.Interaction):
+    """為已有的本子補充封面"""
+    await interaction.response.defer()
+    
     try:
         if not DOWNLOAD_DIR.exists():
-            await ctx.send("📂 下載資料夾不存在")
+            await interaction.followup.send("📂 下載資料夾不存在")
             return
         
-        await ctx.send("🔍 開始掃描並補充封面...")
+        await interaction.followup.send("🔍 開始掃描並補充封面...")
         
         folders = [f for f in DOWNLOAD_DIR.iterdir() if f.is_dir()]
         fixed_count = 0
@@ -2766,19 +2849,21 @@ async def fixcover_command(ctx):
         msg += f"⏭️ 跳過 {skipped_count} 個已有封面\n"
         if failed_count > 0:
             msg += f"❌ 失敗 {failed_count} 個"
-        await ctx.send(msg)
+        await interaction.channel.send(msg)
         
     except Exception as e:
         logger.error(f"補充封面失敗: {e}")
-        await ctx.send(f"❌ 補充封面失敗: {e}")
+        await interaction.channel.send(f"❌ 補充封面失敗: {e}")
 
 
-@bot.command(name='cleanup', aliases=['clean', 'dedup'])
-async def cleanup_command(ctx):
-    """清除重複的資料夾（有時間戳後綴的）：!cleanup"""
+@bot.tree.command(name='cleanup', description='清除重複的資料夾')
+async def cleanup_command(interaction: discord.Interaction):
+    """清除重複的資料夾（有時間戳後綴的）"""
+    await interaction.response.defer()
+    
     try:
         if not DOWNLOAD_DIR.exists():
-            await ctx.send("📂 下載資料夾不存在")
+            await interaction.followup.send("📂 下載資料夾不存在")
             return
         
         # 找出有時間戳後綴的資料夾（格式：標題_時間戳）
@@ -2799,7 +2884,7 @@ async def cleanup_command(ctx):
                     duplicates.append(folder)
         
         if not duplicates:
-            await ctx.send("✅ 沒有發現重複的資料夾")
+            await interaction.followup.send("✅ 沒有發現重複的資料夾")
             return
         
         # 顯示將要刪除的資料夾
@@ -2810,16 +2895,16 @@ async def cleanup_command(ctx):
             msg += f"... 還有 {len(duplicates) - 10} 個\n"
         msg += "\n⚠️ 確定要刪除嗎？回覆 `確認` 或 `yes` 來執行刪除"
         
-        await ctx.send(msg)
+        await interaction.followup.send(msg)
         
         # 等待確認
         def check(m):
-            return m.author == ctx.author and m.channel == ctx.channel and m.content.lower() in ['確認', 'yes', 'y']
+            return m.author.id == interaction.user.id and m.channel.id == interaction.channel_id and m.content.lower() in ['確認', 'yes', 'y']
         
         try:
             confirm_msg = await bot.wait_for('message', timeout=30.0, check=check)
         except:
-            await ctx.send("⏰ 超時，取消操作")
+            await interaction.channel.send("⏰ 超時，取消操作")
             return
         
         # 執行刪除
@@ -2832,21 +2917,20 @@ async def cleanup_command(ctx):
             except Exception as e:
                 logger.error(f"刪除失敗 {dup.name}: {e}")
         
-        await ctx.send(f"✅ 已刪除 {deleted}/{len(duplicates)} 個重複資料夾")
+        await interaction.channel.send(f"✅ 已刪除 {deleted}/{len(duplicates)} 個重複資料夾")
         
     except Exception as e:
         logger.error(f"清除重複失敗: {e}")
-        await ctx.send(f"❌ 清除失敗: {e}")
+        await interaction.followup.send(f"❌ 清除失敗: {e}")
 
 
 # ==================== Eagle Library 搜尋指令 ====================
 
-@bot.command(name='search', aliases=['s', 'find'])
-async def search_command(ctx, *, query: str = None):
-    """搜尋 Eagle Library 中的本子：!search <關鍵字或 nhentai ID>"""
-    if not query:
-        await ctx.send("❌ 請提供搜尋關鍵字或 nhentai ID\n用法：`!search <關鍵字>` 或 `!search <ID>`")
-        return
+@bot.tree.command(name='search', description='搜尋 Eagle Library 中的本子')
+@app_commands.describe(query='搜尋關鍵字或 nhentai ID')
+async def search_command(interaction: discord.Interaction, query: str):
+    """搜尋 Eagle Library 中的本子"""
+    await interaction.response.defer()
     
     try:
         from eagle_library import EagleLibrary
@@ -2868,7 +2952,7 @@ async def search_command(ctx, *, query: str = None):
             search_type = f"關鍵字 `{query}`"
         
         if not results:
-            await ctx.send(f"🔍 找不到符合 {search_type} 的結果")
+            await interaction.followup.send(f"🔍 找不到符合 {search_type} 的結果")
             return
         
         # 限制顯示數量
@@ -2900,22 +2984,21 @@ async def search_command(ctx, *, query: str = None):
                 inline=False
             )
         
-        embed.set_footer(text="使用 !read <ID> 直接取得連結")
-        await ctx.send(embed=embed)
+        embed.set_footer(text="使用 /read <ID> 直接取得連結")
+        await interaction.followup.send(embed=embed)
         
     except ImportError:
-        await ctx.send("❌ Eagle Library 模組未安裝")
+        await interaction.followup.send("❌ Eagle Library 模組未安裝")
     except Exception as e:
         logger.error(f"搜尋失敗: {e}")
-        await ctx.send(f"❌ 搜尋失敗: {e}")
+        await interaction.followup.send(f"❌ 搜尋失敗: {e}")
 
 
-@bot.command(name='read', aliases=['open', 'pdf'])
-async def read_command(ctx, nhentai_id: str = None):
-    """取得本子的 PDF 連結：!read <nhentai ID>"""
-    if not nhentai_id:
-        await ctx.send("❌ 請提供 nhentai ID\n用法：`!read <ID>`（例如：`!read 486715`）")
-        return
+@bot.tree.command(name='read', description='取得本子的 PDF 連結')
+@app_commands.describe(nhentai_id='nhentai ID 或網址')
+async def read_command(interaction: discord.Interaction, nhentai_id: str):
+    """取得本子的 PDF 連結"""
+    await interaction.response.defer()
     
     # 清理輸入
     nhentai_id = nhentai_id.strip()
@@ -2925,7 +3008,7 @@ async def read_command(ctx, nhentai_id: str = None):
         if match:
             nhentai_id = match.group(1)
         else:
-            await ctx.send("❌ 請提供有效的 nhentai ID 或網址")
+            await interaction.followup.send("❌ 請提供有效的 nhentai ID 或網址")
             return
     
     try:
@@ -2935,7 +3018,7 @@ async def read_command(ctx, nhentai_id: str = None):
         result = eagle.find_by_nhentai_id(nhentai_id)
         
         if not result:
-            await ctx.send(f"🔍 找不到 nhentai ID `{nhentai_id}` 的本子\n💡 可能尚未匯入 Eagle，請先使用 `!dl {nhentai_id}` 下載")
+            await interaction.followup.send(f"🔍 找不到 nhentai ID `{nhentai_id}` 的本子\n💡 可能尚未匯入 Eagle，請先使用 `/dl {nhentai_id}` 下載")
             return
         
         title = result.get('title', '未知')
@@ -2967,18 +3050,20 @@ async def read_command(ctx, nhentai_id: str = None):
         
         embed.set_footer(text="點擊 PDF 連結即可在瀏覽器中閱讀")
         
-        await ctx.send(embed=embed)
+        await interaction.followup.send(embed=embed)
         
     except ImportError:
-        await ctx.send("❌ Eagle Library 模組未安裝")
+        await interaction.followup.send("❌ Eagle Library 模組未安裝")
     except Exception as e:
         logger.error(f"讀取失敗: {e}")
-        await ctx.send(f"❌ 讀取失敗: {e}")
+        await interaction.followup.send(f"❌ 讀取失敗: {e}")
 
 
-@bot.command(name='eagle', aliases=['lib', 'library'])
-async def eagle_stats_command(ctx):
-    """顯示 Eagle Library 統計：!eagle"""
+@bot.tree.command(name='eagle', description='顯示 Eagle Library 統計')
+async def eagle_stats_command(interaction: discord.Interaction):
+    """顯示 Eagle Library 統計"""
+    await interaction.response.defer()
+    
     try:
         from eagle_library import EagleLibrary
         eagle = EagleLibrary()
@@ -3005,44 +3090,46 @@ async def eagle_stats_command(ctx):
             except:
                 pass
         
-        embed.set_footer(text="使用 !search <關鍵字> 搜尋 | !read <ID> 取得連結 | !reindex 重建索引")
+        embed.set_footer(text="使用 /search <關鍵字> 搜尋 | /read <ID> 取得連結 | /reindex 重建索引")
         
-        await ctx.send(embed=embed)
+        await interaction.followup.send(embed=embed)
         
     except ImportError:
-        await ctx.send("❌ Eagle Library 模組未安裝")
+        await interaction.followup.send("❌ Eagle Library 模組未安裝")
     except Exception as e:
         logger.error(f"統計失敗: {e}")
-        await ctx.send(f"❌ 統計失敗: {e}")
+        await interaction.followup.send(f"❌ 統計失敗: {e}")
 
 
-@bot.command(name='reindex', aliases=['rebuild', 'sync'])
-async def reindex_command(ctx):
-    """重建 Eagle Library 索引：!reindex"""
+@bot.tree.command(name='reindex', description='重建 Eagle Library 索引')
+async def reindex_command(interaction: discord.Interaction):
+    """重建 Eagle Library 索引"""
+    await interaction.response.defer()
+    
     try:
         from eagle_library import EagleLibrary
         eagle = EagleLibrary()
         
-        msg = await ctx.send("🔄 正在掃描 Eagle Library...")
+        await interaction.followup.send("🔄 正在掃描 Eagle Library...")
         
         added = eagle.rebuild_index()
         stats = eagle.get_stats()
         
         if added > 0:
-            await msg.edit(content=f"✅ 索引重建完成！\n📥 新增 `{added}` 個項目\n📚 總計 `{stats['total_count']}` 本")
+            await interaction.channel.send(f"✅ 索引重建完成！\n📥 新增 `{added}` 個項目\n📚 總計 `{stats['total_count']}` 本")
         else:
-            await msg.edit(content=f"✅ 索引已是最新！\n📚 總計 `{stats['total_count']}` 本")
+            await interaction.channel.send(f"✅ 索引已是最新！\n📚 總計 `{stats['total_count']}` 本")
         
     except ImportError:
-        await ctx.send("❌ Eagle Library 模組未安裝")
+        await interaction.followup.send("❌ Eagle Library 模組未安裝")
     except Exception as e:
         logger.error(f"重建索引失敗: {e}")
-        await ctx.send(f"❌ 重建索引失敗: {e}")
+        await interaction.followup.send(f"❌ 重建索引失敗: {e}")
 
 
-@bot.command(name='help', aliases=['h'])
-async def help_command(ctx):
-    """顯示說明：!help"""
+@bot.tree.command(name='help', description='顯示使用說明')
+async def help_command(interaction: discord.Interaction):
+    """顯示說明"""
     embed = discord.Embed(
         title="📖 HentaiFetcher 使用說明",
         description="自動下載漫畫並轉換為 PDF，生成 Eagle 相容 metadata",
@@ -3051,152 +3138,70 @@ async def help_command(ctx):
     
     # 檢查是否在專用頻道
     is_dedicated = (
-        ctx.channel.name.lower() in [n.lower() for n in DEDICATED_CHANNEL_NAMES] or
-        ctx.channel.id in DEDICATED_CHANNEL_IDS
+        interaction.channel.name.lower() in [n.lower() for n in DEDICATED_CHANNEL_NAMES] or
+        interaction.channel_id in DEDICATED_CHANNEL_IDS
     )
     
     if is_dedicated:
         embed.add_field(
             name="🎯 專用頻道模式（此頻道）",
-            value="**所有指令都不需要 `!` 前綴！**\n"
+            value="**所有指令都不需要前綴，直接輸入！**\n"
                   "━━━━━━━━━━━━━━━━━━\n"
                   "**📥 下載** - 直接貼網址或號碼：\n"
                   "```\n"
                   "421633\n"
                   "https://nhentai.net/g/607769/\n"
-                  "421633 607769 613358\n"
                   "```\n"
-                  "**🧪 強制重新下載**：`test <號碼>`\n"
-                  "**📊 其他指令：**\n"
-                  "`queue` `q` - 查看佇列\n"
-                  "`status` - Bot 狀態\n"
-                  "`list` `ls` - 列出已下載\n"
-                  "`random` `r [n]` - 隨機顯示\n"
-                  "`fixcover` `fc` - 補充封面\n"
-                  "`cleanup` `clean` - 清除重複\n"
-                  "**🦅 Eagle 搜尋：**\n"
-                  "`search` `s` <關鍵字> - 搜尋本子\n"
-                  "`read` <ID> - 取得 PDF 連結\n"
-                  "`eagle` `lib` - Library 統計\n"
-                  "`reindex` `rebuild` - 重建索引\n"
-                  "`ping` - 測試連線\n"
-                  "`version` `v` - 版本號\n"
-                  "`help` `h` - 顯示此說明",
+                  "**🧪 強制重新下載**：`test <號碼>`\n",
             inline=False
         )
-    else:
-        embed.add_field(
-            name="📥 !dl <網址或號碼>",
-            value="**下載漫畫**\n"
-                  "```\n"
-                  "!dl 421633\n"
-                  "!dl 421633 607769 613358\n"
-                  "!dl https://nhentai.net/g/421633/\n"
-                  "```\n"
-                  "支援多行輸入：\n"
-                  "```\n"
-                  "!dl 421633\n"
-                  "607769\n"
-                  "https://nhentai.net/g/613358/\n"
-                  "```",
-            inline=False
-        )
-        
-        embed.add_field(
-            name="🧪 !test <網址或號碼>",
-            value="強制重新下載（跳過重複檢查）",
-            inline=True
-        )
-        
-        embed.add_field(
-            name="📊 !queue 或 !q",
-            value="查看下載佇列任務數",
-            inline=True
-        )
-        
-        embed.add_field(
-            name="📈 !status",
-            value="顯示 Bot 狀態",
-            inline=True
-        )
-        
-        embed.add_field(
-            name="📚 !list 或 !ls",
-            value="列出已下載項目",
-            inline=True
-        )
-        
-        embed.add_field(
-            name="🎲 !random [n]",
-            value="隨機顯示 n 本",
-            inline=True
-        )
-        
-        embed.add_field(
-            name="🔍 !search <關鍵字>",
-            value="搜尋 Eagle Library",
-            inline=True
-        )
-        
-        embed.add_field(
-            name="📖 !read <ID>",
-            value="取得 PDF 連結",
-            inline=True
-        )
-        
-        embed.add_field(
-            name="🦅 !eagle",
-            value="Library 統計",
-            inline=True
-        )
-        
-        embed.add_field(
-            name="🔄 !reindex",
-            value="重建索引",
-            inline=True
-        )
-        
-        embed.add_field(
-            name="🖼️ !fixcover",
-            value="補充封面圖片",
-            inline=True
-        )
-        
-        embed.add_field(
-            name="🧹 !cleanup 或 !clean",
-            value="清除重複資料夾",
-            inline=True
-        )
-        
-        embed.add_field(
-            name="🏓 !ping",
-            value="測試 Bot 連線",
-            inline=True
-        )
-        
-        embed.add_field(
-            name="📦 !version 或 !v",
-            value="顯示 Bot 版本號",
-            inline=True
-        )
+    
+    embed.add_field(
+        name="📊 斜線指令",
+        value="`/queue` - 查看佇列\n"
+              "`/status` - Bot 狀態\n"
+              "`/list` - 列出已下載\n"
+              "`/random [數量]` - 隨機顯示\n"
+              "`/fixcover` - 補充封面\n"
+              "`/cleanup` - 清除重複",
+        inline=True
+    )
+    
+    embed.add_field(
+        name="🦅 Eagle Library",
+        value="`/search <關鍵字>` - 搜尋本子\n"
+              "`/read <ID>` - 取得 PDF 連結\n"
+              "`/eagle` - Library 統計\n"
+              "`/reindex` - 重建索引",
+        inline=True
+    )
+    
+    embed.add_field(
+        name="ℹ️ 系統",
+        value="`/ping` - 測試連線\n"
+              "`/version` - 版本號\n"
+              "`/help` - 顯示此說明",
+        inline=True
+    )
     
     embed.add_field(
         name="📁 輸出結果",
         value="下載完成後會生成：\n"
               "```\n"
-              "downloads/[漫畫標題]/\n"
-              "├── [漫畫標題].pdf\n"
-              "└── metadata.json (Eagle 用)\n"
+              "downloads/[Gallery_ID]/\n"
+              "├── [Gallery_ID].pdf\n"
+              "├── cover.jpg\n"
+              "└── metadata.json\n"
               "```",
         inline=False
     )
     
     if is_dedicated:
-        embed.set_footer(text="🎯 專用頻道：所有指令都不需要 ! 前綴！")
+        embed.set_footer(text="🎯 專用頻道：可直接貼號碼下載！")
     else:
-        embed.set_footer(text="💡 可一次貼多個號碼或網址，用空白/逗號/換行分隔")
+        embed.set_footer(text="💡 使用斜線指令 / 開始")
     
-    await ctx.send(embed=embed)
+    await interaction.response.send_message(embed=embed)
 
 
 # ==================== 主程式入口 ====================

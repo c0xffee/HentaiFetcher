@@ -45,8 +45,17 @@ services:
       # 這裡會存放最終的 PDF 和 metadata.json
       - ./downloads:/app/downloads
       
+      # 已匯入目錄 (歸檔後的資料夾)
+      - ./imported:/app/imported
+      
       # 暫存目錄 (可選，建議使用 tmpfs 提升效能)
       - ./temp:/app/temp
+      
+      # Eagle Library images 目錄 (唯讀，用於查詢)
+      - /volume1/docker/Eagle/nHentai.library/images:/app/eagle-library:ro
+      
+      # imports-index.json 索引檔案
+      - ./imports-index.json:/app/imports-index.json
     
     # 重啟策略
     restart: always

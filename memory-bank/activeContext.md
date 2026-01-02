@@ -1,22 +1,22 @@
 # Active Context
 
 ## Current Focus (目前焦點)
-- 正在執行的任務：修復下載與 PDF 生成流程
+- 正在執行的任務：升級到斜線指令版本 + 修復 Docker 路徑問題
 
 ## Recent Changes (最近更動)
+- [x] 2026-01-02 升級為斜線指令版本 (v3.0.0)
+  - 所有指令改為 Discord 斜線指令 (/dl, /search, /read 等)
+  - 移除傳統 ! 前綴指令
+  - 專用頻道仍支援直接貼號碼下載
+- [x] 2026-01-02 修復 Docker 容器 Eagle Library 路徑
+  - `eagle_library.py` 自動偵測 Docker 環境
+  - Docker 使用 `/app/eagle-library` 和 `/app/imports-index.json`
+  - 本地使用 UNC 路徑
+  - `docker-compose.yml` 新增 Eagle Library volume 掛載
 - [x] 2026-01-02 新增重複下載檢查功能
-  - 新增 `check_already_downloaded()` 函數查詢 Eagle Library
-  - `!dl` 指令加入重複檢查，跳過已存在項目
-  - 專用頻道直接貼號碼也會檢查重複
-  - `!test` / `test` 指令可強制跳過檢查重新下載
-- [x] 2026-01-02 修復 gallery-dl Windows 路徑過長問題
-  - 修改 gallery-dl.conf 使用 `["nhentai", "{gallery_id}"]` 格式
-  - 新增 `--config` 參數確保讀取設定檔
-- [x] 2026-01-02 修復 PDF 輸出路徑過長問題
-  - 資料夾名稱改用 `gallery_id` 而非完整標題
-  - PDF 檔名改用 `{gallery_id}.pdf` 格式
-  - 保留完整標題存入 metadata 和顯示
-  - 新增 PDF save 詳細錯誤日誌
+  - 新增 `check_already_downloaded()` 函數
+  - `/dl` 指令加入 `force` 參數強制重新下載
+- [x] 2026-01-02 修復 metadata 寫入和插件空值檢查
 - [x] 2026-01-02 新增 !reindex 指令
   - 新增 `@bot.command(name='reindex')` 指令重建索引
   - 支援 aliases: rebuild, sync

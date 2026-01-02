@@ -1,7 +1,7 @@
 {
   "webBaseUrlDownloads": "http://192.168.10.2:8888",
   "webBaseUrlEagle": "http://192.168.10.2:8889",
-  "lastUpdated": "2026-01-02T07:52:48.506540Z",
+  "lastUpdated": "2026-01-02T00:00:24.051Z",
   "imports": {
     "547997": {
       "eagleItemId": "MJW3NIYB71YA9",
@@ -32,6 +32,35 @@
         "type:doujinshi"
       ],
       "importedAt": "2026-01-01T23:52:11.067Z"
+    },
+    "597665": {
+      "eagleItemId": "MJW3Y2CC3EQOZ",
+      "nhentaiId": "597665",
+      "nhentaiUrl": "https://nhentai.net/g/597665/",
+      "title": "[角砂糖 (よろず)] ゼンゼロイチャラブエロ合同「ゼンエロ」Vol.2 (ゼンレスゾーンゼロ) [中国翻訳] [DL版]",
+      "tags": [
+        "artist:clearite",
+        "artist:marugoshi",
+        "artist:kikunosukemaru",
+        "artist:mame denkyuu",
+        "artist:negresco",
+        "artist:92m",
+        "artist:siseki hirame",
+        "artist:auman zureedus",
+        "artist:yamoge",
+        "artist:nakamura rohane",
+        "artist:migihaji",
+        "artist:homina mia",
+        "group:kakuzatou",
+        "parody:zenless zone zero",
+        "language:Chinese",
+        "maid",
+        "femdom",
+        "pantyhose",
+        "goudoushi",
+        "type:doujinshi"
+      ],
+      "importedAt": "2026-01-02T00:00:24.051Z"
     },
     "(C88) [Number2 (たくじ)] この、卑怯ものっ!! [中国翻訳]": {
       "eagleItemId": "MJW11F302B3VB",

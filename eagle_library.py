@@ -26,21 +26,48 @@ from typing import Optional, Dict, List, Any
 class EagleLibrary:
     def __init__(
         self,
-        library_images_path: str = "//192.168.10.2/docker/Eagle/nHentai.library/images",
-        web_base_url: str = "http://192.168.10.2:8889",
-        index_file_path: str = "//192.168.10.2/docker/HentaiFetcher/imports-index.json"
+        library_images_path: str = None,
+        web_base_url: str = None,
+        index_file_path: str = None
     ):
         """
         初始化 Eagle Library 查詢工具
         
         Args:
-            library_images_path: Eagle Library images 資料夾的 UNC 路徑
+            library_images_path: Eagle Library images 資料夾路徑
             web_base_url: Web Station 的基礎 URL (對應 images 資料夾)
             index_file_path: imports-index.json 的路徑
+        
+        路徑優先順序: 參數 > 環境變數 > 預設值
         """
-        self.library_images_path = Path(library_images_path)
-        self.web_base_url = web_base_url.rstrip('/')
-        self.index_file_path = Path(index_file_path)
+        import os
+        
+        # 判斷是否在 Docker 容器中 (檢查 /app 目錄)
+        is_docker = os.path.exists('/app/run.py')
+        
+        # 預設值根據環境不同
+        if is_docker:
+            default_library_path = "/app/eagle-library"
+            default_index_path = "/app/imports-index.json"
+        else:
+            default_library_path = "//192.168.10.2/docker/Eagle/nHentai.library/images"
+            default_index_path = "//192.168.10.2/docker/HentaiFetcher/imports-index.json"
+        
+        default_web_url = "http://192.168.10.2:8889"
+        
+        # 使用優先順序: 參數 > 環境變數 > 預設值
+        self.library_images_path = Path(
+            library_images_path or 
+            os.environ.get('EAGLE_LIBRARY_PATH', default_library_path)
+        )
+        self.web_base_url = (
+            web_base_url or 
+            os.environ.get('EAGLE_WEB_URL', default_web_url)
+        ).rstrip('/')
+        self.index_file_path = Path(
+            index_file_path or 
+            os.environ.get('IMPORTS_INDEX_PATH', default_index_path)
+        )
         self._index_cache: Optional[Dict] = None
         self._index_mtime: float = 0
     

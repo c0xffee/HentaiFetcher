@@ -2721,17 +2721,8 @@ async def list_command(interaction: discord.Interaction):
             else:
                 msg_lines.append(f"{source_emoji} {title[:50]}")
         
-        # 發送第一條訊息（詳細統計）
-        header_lines = [
-            f"📚 **全部本子統計**",
-            f"",
-            f"📊 **來源分佈**",
-            f"• 🦅 Eagle Library: **{eagle_count}** 本",
-            f"• 📁 下載資料夾: **{downloads_count}** 本",
-            f"• 📦 總計: **{len(items)}** 本",
-            f"",
-        ]
-        await interaction.followup.send("\n".join(header_lines))
+        # 發送標題
+        await interaction.followup.send(f"📚 **全部本子清單**")
         
         current_batch = []
         current_length = 0
@@ -2750,6 +2741,17 @@ async def list_command(interaction: discord.Interaction):
         # 發送最後一批
         if current_batch:
             await interaction.channel.send("\n".join(current_batch))
+        
+        # 最後發送統計資訊
+        stats_lines = [
+            f"",
+            f"────────────────────",
+            f"📊 **統計資訊**",
+            f"• 🦅 Eagle Library: **{eagle_count}** 本",
+            f"• 📁 下載資料夾: **{downloads_count}** 本",
+            f"• 📦 總計: **{len(items)}** 本",
+        ]
+        await interaction.channel.send("\n".join(stats_lines))
         
     except Exception as e:
         logger.error(f"列出失敗: {e}")
@@ -2961,42 +2963,56 @@ async def random_command(interaction: discord.Interaction, count: int = 1, sourc
             # 來源標記
             source_emoji = "🦅" if item_source == 'eagle' else "📁"
             
-            # 標題
+            # 號碼
             msg_lines.append(f"{source_emoji} **#{gallery_id}**")
             
-            # 連結 - 根據來源決定
+            # 標題內嵌連結
             if item_source == 'eagle' and web_url:
-                # Eagle 來源：使用 Eagle Web URL (PDF)
-                msg_lines.append(f"📥 {web_url}")
+                msg_lines.append(f"[📖 **{title}**]({web_url})")
             elif item_source == 'downloads' and gallery_id:
-                # Downloads 來源：生成 PDF Web URL
                 pdf_web_url = f"{PDF_WEB_BASE_URL}/{quote(str(gallery_id))}/{quote(str(gallery_id))}.pdf"
-                msg_lines.append(f"📥 {pdf_web_url}")
-            elif item.get('url'):
-                # 備用：nhentai 連結
-                msg_lines.append(f"🔗 {item.get('url')}")
+                msg_lines.append(f"[📖 **{title}**]({pdf_web_url})")
+            else:
+                msg_lines.append(f"📖 **{title}**")
             
-            msg_lines.append(f"\n**{title}**\n")
+            msg_lines.append("")  # 空行
             
-            # 基本信息
-            info_lines = []
+            # ===== 顯示所有 metadata =====
+            # 來源
+            msg_lines.append(f"📦 來源: {'Eagle Library' if item_source == 'eagle' else '下載資料夾'}")
+            
+            # 基本資訊
             if artists:
-                info_lines.append(f"✍️ 作者: {', '.join(artists[:3])}")
+                msg_lines.append(f"✍️ 作者: {', '.join(artists)}")
             if groups:
-                info_lines.append(f"👥 社團: {', '.join(groups[:2])}")
+                msg_lines.append(f"👥 社團: {', '.join(groups)}")
             if parodies:
-                info_lines.append(f"🎬 原作: {', '.join(parodies[:3])}")
+                msg_lines.append(f"🎬 原作: {', '.join(parodies)}")
             if languages:
-                info_lines.append(f"🌐 語言: {', '.join(languages)}")
+                msg_lines.append(f"🌐 語言: {', '.join(languages)}")
             
-            if info_lines:
-                msg_lines.extend(info_lines)
+            # 角色
+            characters = [tag.replace('character:', '') for tag in tags if isinstance(tag, str) and tag.startswith('character:')]
+            if characters:
+                msg_lines.append(f"👤 角色: {', '.join(characters[:5])}")
+                if len(characters) > 5:
+                    msg_lines.append(f"  ... 及其他 {len(characters)-5} 位")
             
-            # Tags
+            # 類型
+            types = [tag.replace('type:', '') for tag in tags if isinstance(tag, str) and tag.startswith('type:')]
+            if types:
+                msg_lines.append(f"📁 類型: {', '.join(types)}")
+            
+            # nhentai 連結 (備用)
+            if item.get('url'):
+                msg_lines.append(f"🔗 nhentai: {item.get('url')}")
+            
+            # Tags (去除已顯示的前綴 tags)
             if other_tags:
-                msg_lines.append(f"\n🏷️ {', '.join([f'`{tag}`' for tag in other_tags[:10]])}")
-                if len(other_tags) > 10:
-                    msg_lines.append(f"`+{len(other_tags)-10} more`")
+                msg_lines.append(f"")
+                msg_lines.append(f"🏷️ 標籤: {', '.join([f'`{tag}`' for tag in other_tags[:15]])}")
+                if len(other_tags) > 15:
+                    msg_lines.append(f"`... +{len(other_tags)-15} more`")
             
             # 發送資料訊息
             final_msg = "\n".join(msg_lines)

@@ -252,6 +252,51 @@ class ParodySearchButton(ui.Button):
             custom_id=f"parody_search:{parody[:50]}",
             row=1
         )
+    
+    async def callback(self, interaction: discord.Interaction):
+        await interaction.response.defer()
+        
+        try:
+            from run import get_all_downloads_items
+            from eagle_library import EagleLibrary
+            
+            results = []
+            search_tag = f"parody:{self.parody}"
+            
+            # 搜尋 Eagle
+            try:
+                eagle = EagleLibrary()
+                eagle_results = eagle.find_by_tag(search_tag)
+                for r in eagle_results:
+                    r['source'] = 'eagle'
+                    results.append(r)
+            except Exception:
+                pass
+            
+            # 搜尋 Downloads
+            for item in get_all_downloads_items():
+                item_tags = item.get('tags', [])
+                if search_tag in item_tags:
+                    if not any(r.get('nhentai_id') == item.get('nhentai_id') for r in results):
+                        results.append(item)
+            
+            if not results:
+                await interaction.followup.send(f"🔍 找不到原作 `{self.parody}` 的其他作品")
+                return
+            
+            from .search_view import SearchResultView
+            
+            # 使用分頁 View 顯示所有結果
+            view = SearchResultView(
+                results, 
+                f"parody:{self.parody}",
+                search_type="parody"
+            )
+            
+            await interaction.followup.send(embed=view.get_embed(), view=view)
+            
+        except Exception as e:
+            await interaction.followup.send(f"❌ 搜尋失敗: {e}", ephemeral=True)
 
 
 class CharacterSearchButton(ui.Button):
@@ -304,51 +349,6 @@ class CharacterSearchButton(ui.Button):
                 results, 
                 f"character:{self.character}",
                 search_type="character"
-            )
-            
-            await interaction.followup.send(embed=view.get_embed(), view=view)
-            
-        except Exception as e:
-            await interaction.followup.send(f"❌ 搜尋失敗: {e}", ephemeral=True)
-    
-    async def callback(self, interaction: discord.Interaction):
-        await interaction.response.defer()
-        
-        try:
-            from run import get_all_downloads_items
-            from eagle_library import EagleLibrary
-            
-            results = []
-            search_tag = f"parody:{self.parody}"
-            
-            # 搜尋 Eagle
-            try:
-                eagle = EagleLibrary()
-                eagle_results = eagle.find_by_tag(search_tag)
-                for r in eagle_results:
-                    r['source'] = 'eagle'
-                    results.append(r)
-            except Exception:
-                pass
-            
-            # 搜尋 Downloads
-            for item in get_all_downloads_items():
-                item_tags = item.get('tags', [])
-                if search_tag in item_tags:
-                    if not any(r.get('nhentai_id') == item.get('nhentai_id') for r in results):
-                        results.append(item)
-            
-            if not results:
-                await interaction.followup.send(f"🔍 找不到原作 `{self.parody}` 的其他作品")
-                return
-            
-            from .search_view import SearchResultView
-            
-            # 使用分頁 View 顯示所有結果
-            view = SearchResultView(
-                results, 
-                f"parody:{self.parody}",
-                search_type="parody"
             )
             
             await interaction.followup.send(embed=view.get_embed(), view=view)

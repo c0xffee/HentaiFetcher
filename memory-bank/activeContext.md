@@ -4,6 +4,11 @@
 - 斜線指令版本 v3.1.0 - 功能增強
 
 ## Recent Changes (最近更動)
+- [x] 2026-01-02 `/random` 預設改為雙來源 (all)
+  - 預設從 Eagle + Downloads 合併隨機
+  - 新增 `/sync` 指令強制同步斜線指令
+- [x] 2026-01-02 `/list` 顯示詳細統計
+  - 分別顯示 Eagle/Downloads 數量
 - [x] 2026-01-02 `/random` 指令支援來源選擇
   - 新增 `source` 參數：eagle、downloads、all
   - 使用 `secrets` 模組提升隨機性

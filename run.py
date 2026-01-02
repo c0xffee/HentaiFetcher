@@ -14,7 +14,7 @@ HentaiFetcher - Discord Bot 自動化漫畫下載器
 """
 
 # 版本號 - 用來確認容器是否更新
-VERSION = "3.0.0"
+VERSION = "3.1.0"
 
 print(f"[STARTUP] HentaiFetcher 版本 {VERSION} 正在載入...", flush=True)
 
@@ -2581,6 +2581,27 @@ async def queue_command(interaction: discord.Interaction):
     await interaction.response.send_message(f"📊 佇列中等待任務: {size}")
 
 
+@bot.tree.command(name='sync', description='強制同步斜線指令（管理員專用）')
+async def sync_command(interaction: discord.Interaction):
+    """強制同步斜線指令到 Discord"""
+    # 檢查權限（只有管理員可以使用）
+    if not interaction.user.guild_permissions.administrator:
+        await interaction.response.send_message("❌ 此指令僅限管理員使用", ephemeral=True)
+        return
+    
+    await interaction.response.defer(ephemeral=True)
+    
+    try:
+        # 同步到當前伺服器
+        bot.tree.copy_global_to(guild=interaction.guild)
+        synced = await bot.tree.sync(guild=interaction.guild)
+        await interaction.followup.send(f"✅ 已同步 **{len(synced)}** 個斜線指令到此伺服器\n💡 新參數應該立即生效", ephemeral=True)
+        logger.info(f"手動同步指令到 {interaction.guild.name}: {len(synced)} 個")
+    except Exception as e:
+        await interaction.followup.send(f"❌ 同步失敗: {e}", ephemeral=True)
+        logger.error(f"手動同步指令失敗: {e}")
+
+
 @bot.tree.command(name='ping', description='測試機器人連線')
 async def ping_command(interaction: discord.Interaction):
     """測試連線"""
@@ -2700,10 +2721,17 @@ async def list_command(interaction: discord.Interaction):
             else:
                 msg_lines.append(f"{source_emoji} {title[:50]}")
         
-        # 發送第一條訊息
-        header = f"📚 **全部本子** (共 {len(items)} 本)\n"
-        header += f"🦅 Eagle: {eagle_count} | 📁 下載: {downloads_count}\n"
-        await interaction.followup.send(header)
+        # 發送第一條訊息（詳細統計）
+        header_lines = [
+            f"📚 **全部本子統計**",
+            f"",
+            f"📊 **來源分佈**",
+            f"• 🦅 Eagle Library: **{eagle_count}** 本",
+            f"• 📁 下載資料夾: **{downloads_count}** 本",
+            f"• 📦 總計: **{len(items)}** 本",
+            f"",
+        ]
+        await interaction.followup.send("\n".join(header_lines))
         
         current_batch = []
         current_length = 0
@@ -2793,17 +2821,17 @@ def get_random_from_downloads(count: int = 1) -> List[Dict[str, Any]]:
     return results
 
 
-@bot.tree.command(name='random', description='隨機顯示本子')
+@bot.tree.command(name='random', description='隨機顯示本子（預設雙來源）')
 @app_commands.describe(
     count='顯示數量 (1-5)',
-    source='來源：eagle=Eagle Library, downloads=下載資料夾, all=全部'
+    source='來源：all=全部(預設), eagle=Eagle Library, downloads=下載資料夾'
 )
 @app_commands.choices(source=[
-    app_commands.Choice(name='Eagle Library', value='eagle'),
-    app_commands.Choice(name='下載資料夾', value='downloads'),
-    app_commands.Choice(name='全部', value='all'),
+    app_commands.Choice(name='🔀 全部 (預設)', value='all'),
+    app_commands.Choice(name='🦅 Eagle Library', value='eagle'),
+    app_commands.Choice(name='📁 下載資料夾', value='downloads'),
 ])
-async def random_command(interaction: discord.Interaction, count: int = 1, source: str = 'eagle'):
+async def random_command(interaction: discord.Interaction, count: int = 1, source: str = 'all'):
     """隨機顯示本子"""
     await interaction.response.defer()
     

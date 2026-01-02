@@ -129,7 +129,7 @@ async def show_item_detail(
         show_cover: 是否顯示封面
         title_prefix: 標題前綴 (如 "🎲 隨機抽選結果")
     """
-    from run import find_item_by_id
+    from run import find_item_by_id, parse_annotation_comments
     from .read_view import ReadDetailView
     
     result = find_item_by_id(gallery_id)
@@ -143,10 +143,13 @@ async def show_item_detail(
     tags = result.get('tags', [])
     folder_path = result.get('folder_path', '')
     item_source = result.get('source', 'eagle')
+    annotation = result.get('annotation', '')
     
     # 解析 tags
     artists = [tag.replace('artist:', '') for tag in tags if isinstance(tag, str) and tag.startswith('artist:')]
     parodies = [tag.replace('parody:', '') for tag in tags if isinstance(tag, str) and tag.startswith('parody:')]
+    groups = [tag.replace('group:', '') for tag in tags if isinstance(tag, str) and tag.startswith('group:')]
+    languages = [tag.replace('language:', '') for tag in tags if isinstance(tag, str) and tag.startswith('language:')]
     characters = [tag.replace('character:', '') for tag in tags if isinstance(tag, str) and tag.startswith('character:')]
     other_tags = [tag for tag in tags if isinstance(tag, str) and not any(tag.startswith(prefix) for prefix in ['artist:', 'parody:', 'group:', 'language:', 'character:', 'type:'])]
     
@@ -201,14 +204,24 @@ async def show_item_detail(
     else:
         msg_lines.append(f"📖 **{title}**")
     
+    msg_lines.append("")  # 空行
+    
+    # 基本資訊
     if artists:
         msg_lines.append(f"✍️ 作者: {', '.join(artists)}")
+    if groups:
+        msg_lines.append(f"👥 社團: {', '.join(groups)}")
     if parodies:
         msg_lines.append(f"🎬 原作: {', '.join(parodies)}")
+    if languages:
+        msg_lines.append(f"🌐 語言: {', '.join(languages)}")
     if characters:
-        msg_lines.append(f"👤 角色: {', '.join(characters[:3])}" + (f" (+{len(characters)-3})" if len(characters) > 3 else ""))
+        char_display = ', '.join(characters[:5])
+        if len(characters) > 5:
+            char_display += f" (+{len(characters)-5})"
+        msg_lines.append(f"👤 角色: {char_display}")
     
-    # 加入檔案大小和頁數
+    # 檔案資訊
     info_parts = []
     if page_count > 0:
         info_parts.append(f"📄 {page_count} 頁")
@@ -217,7 +230,35 @@ async def show_item_detail(
     if info_parts:
         msg_lines.append(" | ".join(info_parts))
     
+    # 標籤顯示
+    if other_tags:
+        msg_lines.append("")
+        tag_display = ' '.join([f'`{tag}`' for tag in other_tags[:12]])
+        if len(other_tags) > 12:
+            tag_display += f" (+{len(other_tags) - 12})"
+        msg_lines.append(f"🏷️ {tag_display}")
+    
+    # 評論顯示
+    if annotation:
+        comments = parse_annotation_comments(annotation)
+        if comments:
+            msg_lines.append("")
+            msg_lines.append("💬 **用戶評論**")
+            for i, comment in enumerate(comments[:3]):
+                user = comment.get('user', '匿名')
+                content = comment.get('content', '')
+                # 截斷過長評論
+                if len(content) > 80:
+                    content = content[:77] + "..."
+                msg_lines.append(f"> **{user}**: {content}")
+            if len(comments) > 3:
+                msg_lines.append(f"> _... 還有 {len(comments) - 3} 則評論_")
+    
     final_msg = "\n".join(msg_lines)
+    
+    # 截斷過長訊息
+    if len(final_msg) > 1900:
+        final_msg = final_msg[:1900] + "..."
     
     # 建立 View - 確保 URL 不超過限制
     safe_web_url = web_url if len(web_url) <= DISCORD_URL_MAX_LENGTH else ""

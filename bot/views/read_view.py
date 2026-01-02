@@ -363,7 +363,51 @@ class RandomButton(ui.Button):
         )
     
     async def callback(self, interaction: discord.Interaction):
-        await interaction.response.send_message(
-            "💡 請使用 `/random` 指令來隨機抽選",
-            ephemeral=True
-        )
+        """執行隨機抽選"""
+        await interaction.response.defer()
+        
+        try:
+            from run import get_all_downloads_items
+            from eagle_library import EagleLibrary
+            from .helpers import show_item_detail
+            import secrets
+            
+            all_results = []
+            
+            # 從 Eagle 獲取
+            try:
+                eagle = EagleLibrary()
+                eagle_results = eagle.get_all_items()
+                for r in eagle_results:
+                    r['source'] = 'eagle'
+                all_results.extend(eagle_results)
+            except Exception as e:
+                logger.debug(f"Eagle 搜尋錯誤: {e}")
+            
+            # 從 Downloads 獲取
+            download_results = get_all_downloads_items()
+            all_results.extend(download_results)
+            
+            if not all_results:
+                await interaction.followup.send("❌ 沒有可抽選的作品", ephemeral=True)
+                return
+            
+            # 隨機選擇
+            selected = secrets.choice(all_results)
+            gallery_id = selected.get('nhentai_id', '')
+            
+            if not gallery_id:
+                await interaction.followup.send("❌ 抽選結果無效", ephemeral=True)
+                return
+            
+            # 使用統一模板顯示
+            await show_item_detail(
+                interaction, 
+                gallery_id, 
+                show_cover=True,
+                title_prefix="🎲 **隨機抽選結果**"
+            )
+            
+        except Exception as e:
+            logger.error(f"隨機一本失敗: {e}", exc_info=True)
+            await interaction.followup.send(f"❌ 操作失敗: {e}", ephemeral=True)

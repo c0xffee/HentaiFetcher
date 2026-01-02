@@ -14,7 +14,7 @@ HentaiFetcher - Discord Bot 自動化漫畫下載器
 """
 
 # 版本號 - 用來確認容器是否更新
-VERSION = "3.3.7"
+VERSION = "3.3.8"
 
 print(f"[STARTUP] HentaiFetcher 版本 {VERSION} 正在載入...", flush=True)
 

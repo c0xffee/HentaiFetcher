@@ -92,35 +92,16 @@ class TagSelectMenu(ui.Select):
                 await interaction.followup.send(f"🔍 找不到包含標籤 `{selected_tag}` 的作品")
                 return
             
-            # 顯示結果
+            # 使用分頁 View 顯示所有結果
             from .search_view import SearchResultView
             
-            total = len(results)
-            display_results = results[:10]
-            
-            embed = discord.Embed(
-                title=f"🏷️ 標籤搜尋 - `{selected_tag}`",
-                description=f"找到 {total} 個結果" + (f"（顯示前 10 個）" if total > 10 else ""),
-                color=discord.Color.purple()
+            view = SearchResultView(
+                results, 
+                selected_tag,
+                search_type="tag"
             )
             
-            for i, r in enumerate(display_results, 1):
-                title = r.get('title', '未知')
-                if len(title) > 50:
-                    title = title[:47] + "..."
-                
-                gallery_id = r.get('nhentai_id', 'N/A')
-                item_source = r.get('source', 'eagle')
-                source_emoji = "🦅" if item_source == 'eagle' else "📁"
-                
-                embed.add_field(
-                    name=f"{source_emoji} {i}. {title}",
-                    value=f"📖 ID: `{gallery_id}`",
-                    inline=False
-                )
-            
-            view = SearchResultView(display_results, selected_tag)
-            await interaction.followup.send(embed=embed, view=view)
+            await interaction.followup.send(embed=view.get_embed(), view=view)
             
         except Exception as e:
             logger.error(f"標籤搜尋失敗: {e}", exc_info=True)
@@ -243,25 +224,14 @@ class ArtistSearchButton(ui.Button):
             
             from .search_view import SearchResultView
             
-            embed = discord.Embed(
-                title=f"✍️ 同作者搜尋 - `{self.artist}`",
-                description=f"找到 {len(results)} 個結果",
-                color=discord.Color.blue()
+            # 使用分頁 View 顯示所有結果
+            view = SearchResultView(
+                results, 
+                f"artist:{self.artist}",
+                search_type="artist"
             )
             
-            for i, r in enumerate(results[:10], 1):
-                title = r.get('title', '未知')[:50]
-                gallery_id = r.get('nhentai_id', 'N/A')
-                source_emoji = "🦅" if r.get('source') == 'eagle' else "📁"
-                
-                embed.add_field(
-                    name=f"{source_emoji} {i}. {title}",
-                    value=f"📖 ID: `{gallery_id}`",
-                    inline=False
-                )
-            
-            view = SearchResultView(results[:10], f"artist:{self.artist}")
-            await interaction.followup.send(embed=embed, view=view)
+            await interaction.followup.send(embed=view.get_embed(), view=view)
             
         except Exception as e:
             await interaction.followup.send(f"❌ 搜尋失敗: {e}", ephemeral=True)
@@ -312,25 +282,14 @@ class ParodySearchButton(ui.Button):
             
             from .search_view import SearchResultView
             
-            embed = discord.Embed(
-                title=f"🎬 同原作搜尋 - `{self.parody}`",
-                description=f"找到 {len(results)} 個結果",
-                color=discord.Color.orange()
+            # 使用分頁 View 顯示所有結果
+            view = SearchResultView(
+                results, 
+                f"parody:{self.parody}",
+                search_type="parody"
             )
             
-            for i, r in enumerate(results[:10], 1):
-                title = r.get('title', '未知')[:50]
-                gallery_id = r.get('nhentai_id', 'N/A')
-                source_emoji = "🦅" if r.get('source') == 'eagle' else "📁"
-                
-                embed.add_field(
-                    name=f"{source_emoji} {i}. {title}",
-                    value=f"📖 ID: `{gallery_id}`",
-                    inline=False
-                )
-            
-            view = SearchResultView(results[:10], f"parody:{self.parody}")
-            await interaction.followup.send(embed=embed, view=view)
+            await interaction.followup.send(embed=view.get_embed(), view=view)
             
         except Exception as e:
             await interaction.followup.send(f"❌ 搜尋失敗: {e}", ephemeral=True)

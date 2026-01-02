@@ -3437,44 +3437,12 @@ async def search_command(
         compact_mode = total > 5
         
         if compact_mode:
-            # 精簡模式：使用 embed
-            embed = discord.Embed(
-                title=f"🔍 搜尋結果 - {search_type}",
-                description=f"**{source_label}** 中找到 {total} 個結果" + (f"（顯示前 10 個）" if total > 10 else ""),
-                color=discord.Color.blue()
-            )
-            
-            for i, r in enumerate(display_results, 1):
-                title = r.get('title', '未知')
-                if len(title) > 50:
-                    title = title[:47] + "..."
-                
-                gallery_id = r.get('nhentai_id', 'N/A')
-                web_url = r.get('web_url', '')
-                item_source = r.get('source', 'eagle')
-                source_emoji = "🦅" if item_source == 'eagle' else "📁"
-                
-                # 建立連結
-                if item_source == 'eagle' and web_url:
-                    link = f"[開啟 PDF]({web_url})"
-                elif item_source == 'downloads' and gallery_id:
-                    pdf_url = f"{PDF_WEB_BASE_URL}/{quote(str(gallery_id))}/{quote(str(gallery_id))}.pdf"
-                    link = f"[開啟 PDF]({pdf_url})"
-                else:
-                    link = "無連結"
-                
-                embed.add_field(
-                    name=f"{source_emoji} {i}. {title}",
-                    value=f"📖 ID: `{gallery_id}` | {link}",
-                    inline=False
-                )
-            
-            embed.set_footer(text="⬇️ 使用下方選單選擇作品")
-            
-            # 加入搜尋結果互動視圖
+            # 精簡模式：使用分頁 embed
             from bot.views import SearchResultView
-            view = SearchResultView(display_results, query, source)
-            await interaction.followup.send(embed=embed, view=view)
+            
+            # 傳入全部結果，View 會處理分頁
+            view = SearchResultView(results, query, source, search_type="keyword")
+            await interaction.followup.send(embed=view.get_embed(), view=view)
         else:
             # 詳細模式：類似 random 的顯示方式
             await interaction.followup.send(f"🔍 **{source_label}** 中找到 {total} 個結果 - {search_type}")

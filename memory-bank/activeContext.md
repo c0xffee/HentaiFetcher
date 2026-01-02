@@ -1,9 +1,16 @@
 # Active Context
 
 ## Current Focus (目前焦點)
-- ✅ Discord UI 元件整合完成 v3.3.0 - Phase 3 完成
+- ✅ Discord UI 元件整合 v3.3.1 - 測試回饋修復完成
 
 ## Recent Changes (最近更動)
+- [x] 2026-01-02 修復 UI 元件測試回饋 (v3.3.1)
+  - **SearchResultView 分頁**: 支援超過 10 個結果的分頁顯示
+  - **修復 Select Menu 重複值**: 使用 `{index}:{gallery_id}` 唯一值
+  - **nhentai 連結按鈕**: artist/tag/parody 搜尋結果加入 nhentai 連結
+  - **RandomResultView 直接執行**: 詳細資訊/再抽一次按鈕直接執行
+  - **read_view 搜尋按鈕**: 改用分頁 View 顯示
+  - **PaginatedListView**: 新增 Select Menu + 排序功能 (預設/收藏/隨機)
 - [x] 2026-01-02 實作 PaginatedListView (Step 3.6)
   - `/list` 改為分頁 Embed 顯示
   - 每頁 15 筆，支援上/下頁、首頁/末頁按鈕

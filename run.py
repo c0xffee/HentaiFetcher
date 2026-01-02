@@ -2869,7 +2869,7 @@ def find_item_by_id(gallery_id: str) -> Optional[Dict[str, Any]]:
     return None
 
 
-def parse_annotation_comments(annotation: str) -> List[str]:
+def parse_annotation_comments(annotation: str) -> List[Dict[str, str]]:
     """
     從 annotation 中提取用戶評論
     
@@ -2877,25 +2877,65 @@ def parse_annotation_comments(annotation: str) -> List[str]:
         annotation: metadata 中的 annotation 字串
     
     Returns:
-        評論列表
+        評論列表，每個元素包含 user 和 content
     """
     comments = []
     if not annotation:
         return comments
     
     # 查找評論區塊
-    if '💬 用戶評論:' in annotation:
-        comment_section = annotation.split('💬 用戶評論:')[1]
-        # 到下一個 emoji 標記或結尾
-        for line in comment_section.split('\n'):
-            line = line.strip()
-            if line and not line.startswith(('⏰', '📥')):
-                if line.startswith('[') and ']' in line:
-                    comments.append(line)
-            elif line.startswith(('⏰', '📥')):
-                break
+    if '💬 用戶評論:' not in annotation:
+        return comments
     
-    return comments[:3]  # 最多 3 則評論
+    comment_section = annotation.split('💬 用戶評論:')[1]
+    
+    # 截取到下一個時間戳記或結尾
+    if '⏰' in comment_section:
+        comment_section = comment_section.split('⏰')[0]
+    
+    lines = comment_section.split('\n')
+    current_user = None
+    current_content = []
+    
+    for line in lines:
+        line = line.strip()
+        if not line:
+            # 空行：儲存當前評論
+            if current_user and current_content:
+                comments.append({
+                    'user': current_user,
+                    'content': ' '.join(current_content)
+                })
+                current_user = None
+                current_content = []
+            continue
+        
+        # 跳過 "還有 X 則評論" 
+        if line.startswith('...') and '則評論' in line:
+            continue
+        
+        # 檢查是否為用戶名行 [username] (time ago)
+        if line.startswith('[') and ']' in line:
+            # 先儲存上一個評論
+            if current_user and current_content:
+                comments.append({
+                    'user': current_user,
+                    'content': ' '.join(current_content)
+                })
+            current_user = line
+            current_content = []
+        else:
+            # 這是評論內容
+            current_content.append(line)
+    
+    # 儲存最後一個評論
+    if current_user and current_content:
+        comments.append({
+            'user': current_user,
+            'content': ' '.join(current_content)
+        })
+    
+    return comments
 
 
 def get_random_from_downloads(count: int = 1) -> List[Dict[str, Any]]:
@@ -3148,8 +3188,10 @@ async def random_command(interaction: discord.Interaction, count: int = 1, sourc
                 if comments:
                     msg_lines.append("")
                     msg_lines.append("💬 評論:")
-                    for comment in comments:
-                        msg_lines.append(f"  • {comment}")
+                    for c in comments:
+                        msg_lines.append(f"  **{c['user']}**")
+                        if c['content']:
+                            msg_lines.append(f"  {c['content']}")
             
             # Tags (顯示全部標籤)
             if other_tags:
@@ -3614,8 +3656,10 @@ async def read_command(interaction: discord.Interaction, nhentai_id: str):
             if comments:
                 msg_lines.append("")
                 msg_lines.append("💬 評論:")
-                for comment in comments:
-                    msg_lines.append(f"  • {comment}")
+                for c in comments:
+                    msg_lines.append(f"  **{c['user']}**")
+                    if c['content']:
+                        msg_lines.append(f"  {c['content']}")
         
         # 標籤 (顯示全部)
         if other_tags:

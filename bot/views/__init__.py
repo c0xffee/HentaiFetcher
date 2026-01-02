@@ -14,6 +14,7 @@ from .search_view import SearchResultView
 from .read_view import ReadDetailView
 from .random_view import RandomResultView
 from .download_view import DownloadCompleteView
+from .list_view import PaginatedListView
 
 __all__ = [
     'BaseView',
@@ -22,4 +23,5 @@ __all__ = [
     'ReadDetailView', 
     'RandomResultView',
     'DownloadCompleteView',
+    'PaginatedListView',
 ]

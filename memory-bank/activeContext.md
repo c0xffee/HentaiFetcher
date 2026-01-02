@@ -1,9 +1,13 @@
 # Active Context
 
 ## Current Focus (目前焦點)
-- 🎮 Discord UI 元件整合 v3.3.0 - Phase 3 實作中
+- ✅ Discord UI 元件整合完成 v3.3.0 - Phase 3 完成
 
 ## Recent Changes (最近更動)
+- [x] 2026-01-02 實作 PaginatedListView (Step 3.6)
+  - `/list` 改為分頁 Embed 顯示
+  - 每頁 15 筆，支援上/下頁、首頁/末頁按鈕
+  - 統計資訊整合到 Embed 中
 - [x] 2026-01-02 實作 Discord UI Views (Phase 3.1-3.5)
   - 建立 `bot/views/` 模組結構
   - `base.py` - 持久化 View 基礎類別 (5分鐘超時)
@@ -11,12 +15,8 @@
   - `read_view.py` - ReadDetailView (Tag Select + 操作按鈕)
   - `random_view.py` - RandomResultView (再抽一次等按鈕)
   - `download_view.py` - DownloadCompleteView (下載完成按鈕)
+  - `list_view.py` - PaginatedListView (分頁列表)
   - `eagle_library.py` 新增 `find_by_tag()` 方法
-  - `/search` 整合 SearchResultView
-  - `/read` 整合 ReadDetailView + Tag 選擇
-  - `/random` 整合 RandomResultView
-  - 下載完成訊息整合 DownloadCompleteView
-  - 更新 `/help` 說明加入互動按鈕提示
   - 版本升級 3.2.0 → 3.3.0
 - [x] 2026-01-02 規劃 Discord UI 元件整合方案
 - [x] 2026-01-02 修復評論解析 + 顯示全部 metadata

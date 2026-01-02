@@ -2653,15 +2653,16 @@ async def status_command(interaction: discord.Interaction):
 
 @bot.tree.command(name='list', description='列出所有已下載的本子（包含 Eagle Library）')
 async def list_command(interaction: discord.Interaction):
-    """列出所有已下載的本子"""
-    await interaction.response.defer()  # 可能需要較長時間
+    """列出所有已下載的本子（分頁顯示）"""
+    await interaction.response.defer()
     
     try:
         from urllib.parse import quote
         from eagle_library import EagleLibrary
+        from bot.views import PaginatedListView
         
         # 收集所有項目
-        items = []  # (gallery_id, name, source)
+        items = []  # (gallery_id, title, source)
         seen_ids = set()
         
         # 1. 從 Eagle Library 獲取
@@ -2723,47 +2724,15 @@ async def list_command(interaction: discord.Interaction):
         eagle_count = sum(1 for _, _, src in items if src == 'eagle')
         downloads_count = sum(1 for _, _, src in items if src == 'downloads')
         
-        # 構建輸出
-        msg_lines = []
-        for gallery_id, title, source in items:
-            # 格式：🦅/📁 `#號碼` 書名
-            source_emoji = "🦅" if source == 'eagle' else "📁"
-            if gallery_id:
-                msg_lines.append(f"{source_emoji} `#{gallery_id}` {title[:50]}")
-            else:
-                msg_lines.append(f"{source_emoji} {title[:50]}")
+        # 建立分頁視圖
+        view = PaginatedListView(
+            items=items,
+            eagle_count=eagle_count,
+            downloads_count=downloads_count
+        )
         
-        # 發送標題
-        await interaction.followup.send(f"📚 **全部本子清單**")
-        
-        current_batch = []
-        current_length = 0
-        
-        for line in msg_lines:
-            line_length = len(line) + 1  # +1 for newline
-            if current_length + line_length > 1800:
-                # 發送當前批次
-                await interaction.channel.send("\n".join(current_batch))
-                current_batch = [line]
-                current_length = line_length
-            else:
-                current_batch.append(line)
-                current_length += line_length
-        
-        # 發送最後一批
-        if current_batch:
-            await interaction.channel.send("\n".join(current_batch))
-        
-        # 最後發送統計資訊
-        stats_lines = [
-            f"",
-            f"",
-            f"📊 **統計資訊**",
-            f"• 🦅 Eagle Library: **{eagle_count}** 本",
-            f"• 📁 下載資料夾: **{downloads_count}** 本",
-            f"• 📦 總計: **{len(items)}** 本",
-        ]
-        await interaction.channel.send("\n".join(stats_lines))
+        # 發送帶有分頁的嵌入訊息
+        await interaction.followup.send(embed=view.get_embed(), view=view)
         
     except Exception as e:
         logger.error(f"列出失敗: {e}")

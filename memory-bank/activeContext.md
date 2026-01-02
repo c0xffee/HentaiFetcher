@@ -4,6 +4,9 @@
 - ✅ Discord UI 元件整合 v3.3.1 - 測試回饋修復完成
 
 ## Recent Changes (最近更動)
+- [x] 2026-01-03 詳細模式顯示檔案資訊 + 去除重複 URL (v3.3.4)
+  - **詳細模式**: 搜尋結果顯示頁數 (📄) 和檔案大小 (💾)
+  - **去除重複 URL**: 專用頻道和 /dl 指令輸入多筆時自動去重
 - [x] 2026-01-03 下載前 reindex + cleanup 重設計 (v3.3.3)
   - **quick_reindex()**: 下載前快速重建索引 (60秒冷卻)
   - **check_already_downloaded()**: 新增 `do_reindex` 參數

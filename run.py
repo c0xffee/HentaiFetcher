@@ -2527,6 +2527,21 @@ class HentaiFetcherBot(commands.Bot):
                 await message.channel.send(f"⚠️ 無法解析: `{content[:50]}`\n請確認格式正確（例如: `607769` 或 `https://nhentai.net/g/607769/`）")
             return
         
+        # 去除重複 URL (依據 gallery_id)
+        seen_ids = set()
+        unique_urls = []
+        for url in parsed_urls:
+            match = re.search(r'/g/(\d+)', url)
+            if match:
+                gid = match.group(1)
+                if gid not in seen_ids:
+                    seen_ids.add(gid)
+                    unique_urls.append(url)
+            else:
+                unique_urls.append(url)  # 無法解析的保留
+        
+        parsed_urls = unique_urls
+        
         # 驗證並加入佇列
         valid_urls = []
         invalid_urls = []
@@ -2646,6 +2661,20 @@ async def dl_command(interaction: discord.Interaction, gallery_ids: str, force: 
     if not parsed_urls:
         await interaction.followup.send("⚠️ 無法解析輸入。請提供有效的 nhentai 號碼。")
         return
+    
+    # 去除重複 URL (依據 gallery_id)
+    seen_ids = set()
+    unique_urls = []
+    for url in parsed_urls:
+        match = re.search(r'/g/(\d+)', url)
+        if match:
+            gid = match.group(1)
+            if gid not in seen_ids:
+                seen_ids.add(gid)
+                unique_urls.append(url)
+        else:
+            unique_urls.append(url)
+    parsed_urls = unique_urls
     
     # 如果不是強制模式，檢查重複
     new_urls = []
@@ -3636,6 +3665,28 @@ async def search_command(
                 artists = [tag.replace('artist:', '') for tag in tags if isinstance(tag, str) and tag.startswith('artist:')]
                 parodies = [tag.replace('parody:', '') for tag in tags if isinstance(tag, str) and tag.startswith('parody:')]
                 
+                # 計算檔案大小和頁數
+                file_size_str = ""
+                page_count = 0
+                if folder_path:
+                    try:
+                        folder = Path(folder_path)
+                        # 計算 PDF 檔案大小
+                        pdf_files = list(folder.glob('*.pdf'))
+                        if pdf_files:
+                            pdf_size = pdf_files[0].stat().st_size
+                            if pdf_size > 1024 * 1024:
+                                file_size_str = f"{pdf_size / (1024*1024):.1f} MB"
+                            else:
+                                file_size_str = f"{pdf_size / 1024:.0f} KB"
+                        
+                        # 計算頁數 (圖片數量)
+                        image_exts = ['*.jpg', '*.jpeg', '*.png', '*.webp', '*.gif']
+                        for ext in image_exts:
+                            page_count += len(list(folder.glob(ext)))
+                    except Exception as e:
+                        logger.debug(f"計算檔案資訊失敗: {e}")
+                
                 # 發送封面
                 cover_sent = False
                 if folder_path:
@@ -3679,6 +3730,15 @@ async def search_command(
                     msg_lines.append(f"✍️ {', '.join(artists)}")
                 if parodies:
                     msg_lines.append(f"🎬 {', '.join(parodies)}")
+                
+                # 加入檔案大小和頁數
+                info_parts = []
+                if page_count > 0:
+                    info_parts.append(f"📄 {page_count} 頁")
+                if file_size_str:
+                    info_parts.append(f"💾 {file_size_str}")
+                if info_parts:
+                    msg_lines.append(" | ".join(info_parts))
                 
                 await interaction.channel.send("\n".join(msg_lines))
         

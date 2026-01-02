@@ -261,7 +261,30 @@ class PaginatedListView(BaseView):
         # 解析 tags
         artists = [tag.replace('artist:', '') for tag in tags if isinstance(tag, str) and tag.startswith('artist:')]
         parodies = [tag.replace('parody:', '') for tag in tags if isinstance(tag, str) and tag.startswith('parody:')]
+        characters = [tag.replace('character:', '') for tag in tags if isinstance(tag, str) and tag.startswith('character:')]
         other_tags = [tag for tag in tags if isinstance(tag, str) and not any(tag.startswith(prefix) for prefix in ['artist:', 'parody:', 'group:', 'language:', 'character:', 'type:'])]
+        
+        # 計算檔案大小和頁數
+        file_size_str = ""
+        page_count = 0
+        if folder_path:
+            try:
+                folder = Path(folder_path)
+                # 計算 PDF 檔案大小
+                pdf_files = list(folder.glob('*.pdf'))
+                if pdf_files:
+                    pdf_size = pdf_files[0].stat().st_size
+                    if pdf_size > 1024 * 1024:
+                        file_size_str = f"{pdf_size / (1024*1024):.1f} MB"
+                    else:
+                        file_size_str = f"{pdf_size / 1024:.0f} KB"
+                
+                # 計算頁數 (圖片數量)
+                image_exts = ['*.jpg', '*.jpeg', '*.png', '*.webp', '*.gif']
+                for ext in image_exts:
+                    page_count += len(list(folder.glob(ext)))
+            except Exception as e:
+                logger.debug(f"計算檔案資訊失敗: {e}")
         
         # 發送封面
         if folder_path:
@@ -301,6 +324,17 @@ class PaginatedListView(BaseView):
             msg_lines.append(f"✍️ 作者: {', '.join(artists)}")
         if parodies:
             msg_lines.append(f"🎬 原作: {', '.join(parodies)}")
+        if characters:
+            msg_lines.append(f"👤 角色: {', '.join(characters[:3])}" + (f" (+{len(characters)-3})" if len(characters) > 3 else ""))
+        
+        # 加入檔案大小和頁數
+        info_parts = []
+        if page_count > 0:
+            info_parts.append(f"📄 {page_count} 頁")
+        if file_size_str:
+            info_parts.append(f"💾 {file_size_str}")
+        if info_parts:
+            msg_lines.append(" | ".join(info_parts))
         
         final_msg = "\n".join(msg_lines)
         
@@ -311,6 +345,7 @@ class PaginatedListView(BaseView):
             web_url=web_url,
             artists=artists,
             parodies=parodies,
+            characters=characters,
             other_tags=other_tags
         )
         

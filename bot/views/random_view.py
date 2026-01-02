@@ -102,7 +102,30 @@ class RandomResultView(BaseView):
             parodies = [tag.replace('parody:', '') for tag in tags if isinstance(tag, str) and tag.startswith('parody:')]
             groups = [tag.replace('group:', '') for tag in tags if isinstance(tag, str) and tag.startswith('group:')]
             languages = [tag.replace('language:', '') for tag in tags if isinstance(tag, str) and tag.startswith('language:')]
+            characters = [tag.replace('character:', '') for tag in tags if isinstance(tag, str) and tag.startswith('character:')]
             other_tags = [tag for tag in tags if isinstance(tag, str) and not any(tag.startswith(prefix) for prefix in ['artist:', 'parody:', 'group:', 'language:', 'character:', 'type:'])]
+            
+            # 計算檔案大小和頁數
+            file_size_str = ""
+            page_count = 0
+            if folder_path:
+                try:
+                    folder = Path(folder_path)
+                    # 計算 PDF 檔案大小
+                    pdf_files = list(folder.glob('*.pdf'))
+                    if pdf_files:
+                        pdf_size = pdf_files[0].stat().st_size
+                        if pdf_size > 1024 * 1024:
+                            file_size_str = f"{pdf_size / (1024*1024):.1f} MB"
+                        else:
+                            file_size_str = f"{pdf_size / 1024:.0f} KB"
+                    
+                    # 計算頁數 (圖片數量)
+                    image_exts = ['*.jpg', '*.jpeg', '*.png', '*.webp', '*.gif']
+                    for ext in image_exts:
+                        page_count += len(list(folder.glob(ext)))
+                except Exception as e:
+                    logger.debug(f"計算檔案資訊失敗: {e}")
             
             # 發送封面
             if folder_path:
@@ -149,6 +172,17 @@ class RandomResultView(BaseView):
                 msg_lines.append(f"🎬 原作: {', '.join(parodies)}")
             if languages:
                 msg_lines.append(f"🌐 語言: {', '.join(languages)}")
+            if characters:
+                msg_lines.append(f"👤 角色: {', '.join(characters[:3])}" + (f" (+{len(characters)-3})" if len(characters) > 3 else ""))
+            
+            # 加入檔案大小和頁數
+            info_parts = []
+            if page_count > 0:
+                info_parts.append(f"📄 {page_count} 頁")
+            if file_size_str:
+                info_parts.append(f"💾 {file_size_str}")
+            if info_parts:
+                msg_lines.append(" | ".join(info_parts))
             
             if other_tags:
                 msg_lines.append("")
@@ -168,6 +202,7 @@ class RandomResultView(BaseView):
                 web_url=web_url,
                 artists=artists,
                 parodies=parodies,
+                characters=characters,
                 other_tags=other_tags
             )
             
@@ -183,16 +218,23 @@ class RandomResultView(BaseView):
         await interaction.response.defer()
         
         try:
-            from run import search_eagle, search_downloads
+            from run import get_all_downloads_items
+            from eagle_library import EagleLibrary
             
             all_results = []
             
             if self.source_filter in ("all", "eagle"):
-                eagle_results = search_eagle("", limit=5000)
-                all_results.extend(eagle_results)
+                try:
+                    eagle = EagleLibrary()
+                    eagle_results = eagle.get_all_items()
+                    for r in eagle_results:
+                        r['source'] = 'eagle'
+                    all_results.extend(eagle_results)
+                except Exception as e:
+                    logger.debug(f"Eagle 搜尋錯誤: {e}")
             
             if self.source_filter in ("all", "downloads"):
-                download_results = search_downloads("", limit=5000)
+                download_results = get_all_downloads_items()
                 all_results.extend(download_results)
             
             if not all_results:

@@ -119,6 +119,7 @@ class ReadDetailView(BaseView):
         web_url: str = "",
         artists: List[str] = None,
         parodies: List[str] = None,
+        characters: List[str] = None,
         other_tags: List[str] = None,
         *,
         timeout: float = TIMEOUT_SECONDS
@@ -131,6 +132,7 @@ class ReadDetailView(BaseView):
         self.web_url = web_url
         self.artists = artists or []
         self.parodies = parodies or []
+        self.characters = characters or []
         self.other_tags = other_tags or []
         
         # Row 0: 主要按鈕
@@ -170,12 +172,14 @@ class ReadDetailView(BaseView):
         if self.parodies and self.parodies[0] != 'original':
             self.add_item(ParodySearchButton(self.parodies[0]))
         
+        if self.characters:
+            self.add_item(CharacterSearchButton(self.characters[0]))
+        
         # Row 2: Tag Select Menu
         if self.other_tags:
             self.add_item(TagSelectMenu(self.other_tags))
         
-        # Row 3: 其他操作
-        self.add_item(RedownloadButton(gallery_id))
+        # Row 3: 其他操作 (移除重新下載按鈕)
         self.add_item(RandomButton())
 
 
@@ -248,6 +252,64 @@ class ParodySearchButton(ui.Button):
             custom_id=f"parody_search:{parody[:50]}",
             row=1
         )
+
+
+class CharacterSearchButton(ui.Button):
+    """搜尋同角色按鈕"""
+    
+    def __init__(self, character: str):
+        self.character = character
+        super().__init__(
+            label=f"🔍 同角色: {character[:20]}",
+            style=discord.ButtonStyle.secondary,
+            custom_id=f"character_search:{character[:50]}",
+            row=1
+        )
+    
+    async def callback(self, interaction: discord.Interaction):
+        await interaction.response.defer()
+        
+        try:
+            from run import get_all_downloads_items
+            from eagle_library import EagleLibrary
+            
+            results = []
+            search_tag = f"character:{self.character}"
+            
+            # 搜尋 Eagle
+            try:
+                eagle = EagleLibrary()
+                eagle_results = eagle.find_by_tag(search_tag)
+                for r in eagle_results:
+                    r['source'] = 'eagle'
+                    results.append(r)
+            except Exception:
+                pass
+            
+            # 搜尋 Downloads
+            for item in get_all_downloads_items():
+                item_tags = item.get('tags', [])
+                if search_tag in item_tags:
+                    if not any(r.get('nhentai_id') == item.get('nhentai_id') for r in results):
+                        results.append(item)
+            
+            if not results:
+                await interaction.followup.send(f"🔍 找不到角色 `{self.character}` 的其他作品")
+                return
+            
+            from .search_view import SearchResultView
+            
+            # 使用分頁 View 顯示所有結果
+            view = SearchResultView(
+                results, 
+                f"character:{self.character}",
+                search_type="character"
+            )
+            
+            await interaction.followup.send(embed=view.get_embed(), view=view)
+            
+        except Exception as e:
+            await interaction.followup.send(f"❌ 搜尋失敗: {e}", ephemeral=True)
     
     async def callback(self, interaction: discord.Interaction):
         await interaction.response.defer()
@@ -293,37 +355,6 @@ class ParodySearchButton(ui.Button):
             
         except Exception as e:
             await interaction.followup.send(f"❌ 搜尋失敗: {e}", ephemeral=True)
-
-
-class RedownloadButton(ui.Button):
-    """重新下載按鈕"""
-    
-    def __init__(self, gallery_id: str):
-        self.gallery_id = gallery_id
-        super().__init__(
-            label="📥 重新下載",
-            style=discord.ButtonStyle.danger,
-            custom_id=f"redownload:{gallery_id}",
-            row=3
-        )
-    
-    async def callback(self, interaction: discord.Interaction):
-        await interaction.response.defer()
-        
-        try:
-            from run import download_queue, generate_batch_id
-            
-            url = f"https://nhentai.net/g/{self.gallery_id}/"
-            
-            # 加入下載佇列 (force=True)
-            download_queue.put((url, interaction.channel_id, None, True, None))
-            
-            await interaction.followup.send(
-                f"📥 已加入下載佇列 (強制重新下載): `{self.gallery_id}`",
-                ephemeral=True
-            )
-        except Exception as e:
-            await interaction.followup.send(f"❌ 操作失敗: {e}", ephemeral=True)
 
 
 class RandomButton(ui.Button):

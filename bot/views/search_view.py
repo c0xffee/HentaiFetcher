@@ -43,6 +43,8 @@ class SearchResultView(BaseView):
         self.search_type = search_type
         self.current_page = 0
         self.total_pages = max(1, (len(results) + ITEMS_PER_PAGE - 1) // ITEMS_PER_PAGE)
+        self.sort_mode = "default"  # default, favorites, random
+        self.original_results = results.copy()  # 保存原始順序
         
         # 建立 nhentai 連結 (Row 0)
         self._add_nhentai_link()
@@ -67,6 +69,9 @@ class SearchResultView(BaseView):
         elif self.search_type == "parody":
             parody_name = self.query.replace("parody:", "").strip()
             nhentai_url = f"https://nhentai.net/parody/{quote(parody_name.replace(' ', '-').lower())}/"
+        elif self.search_type == "character":
+            character_name = self.query.replace("character:", "").strip()
+            nhentai_url = f"https://nhentai.net/character/{quote(character_name.replace(' ', '-').lower())}/"
         
         if nhentai_url:
             link_button = ui.Button(
@@ -98,6 +103,31 @@ class SearchResultView(BaseView):
         self.prev_button.disabled = (self.current_page <= 0)
         self.next_button.disabled = (self.current_page >= self.total_pages - 1)
         self.page_button.label = f"{self.current_page + 1} / {self.total_pages}"
+        # 更新排序按鈕標籤
+        sort_labels = {
+            "default": "📊 預設排序",
+            "favorites": "⭐ 收藏數排序",
+            "random": "🎲 隨機排序"
+        }
+        self.sort_button.label = sort_labels.get(self.sort_mode, "📊 排序")
+    
+    def _sort_results(self, mode: str):
+        """排序結果"""
+        import random as rand_module
+        
+        if mode == "favorites":
+            # 按收藏數排序
+            self.results.sort(key=lambda x: x.get('favorites', 0), reverse=True)
+        elif mode == "random":
+            # 隨機排序
+            rand_module.shuffle(self.results)
+        else:
+            # 預設排序：恢復原始順序
+            self.results = self.original_results.copy()
+        
+        self.sort_mode = mode
+        self.current_page = 0
+        self.total_pages = max(1, (len(self.results) + ITEMS_PER_PAGE - 1) // ITEMS_PER_PAGE)
     
     def get_embed(self) -> discord.Embed:
         """取得當前頁面的 Embed"""
@@ -115,6 +145,9 @@ class SearchResultView(BaseView):
         elif self.search_type == "parody":
             title = f"🎬 同原作搜尋 - `{self.query.replace('parody:', '')}`"
             color = discord.Color.orange()
+        elif self.search_type == "character":
+            title = f"👤 同角色搜尋 - `{self.query.replace('character:', '')}`"
+            color = discord.Color.green()
         else:
             title = f"🔍 搜尋結果 - `{self.query}`"
             color = discord.Color.blue()
@@ -140,7 +173,8 @@ class SearchResultView(BaseView):
                 inline=False
             )
         
-        embed.set_footer(text=f"頁 {self.current_page + 1}/{self.total_pages} | 使用下拉選單選擇作品")
+        sort_labels = {"default": "預設", "favorites": "收藏數", "random": "隨機"}
+        embed.set_footer(text=f"頁 {self.current_page + 1}/{self.total_pages} | 排序: {sort_labels.get(self.sort_mode, '預設')} | 使用下拉選單選擇作品")
         
         return embed
     
@@ -170,6 +204,20 @@ class SearchResultView(BaseView):
             await interaction.response.edit_message(embed=self.get_embed(), view=self)
         else:
             await interaction.response.defer()
+    
+    @ui.button(label="📊 預設排序", style=discord.ButtonStyle.secondary, custom_id="search_sort", row=2)
+    async def sort_button(self, interaction: discord.Interaction, button: ui.Button):
+        """切換排序模式"""
+        # 循環排序模式
+        modes = ["default", "favorites", "random"]
+        current_idx = modes.index(self.sort_mode) if self.sort_mode in modes else 0
+        next_mode = modes[(current_idx + 1) % len(modes)]
+        
+        self._sort_results(next_mode)
+        self._update_select_menu()
+        self._update_buttons()
+        
+        await interaction.response.edit_message(embed=self.get_embed(), view=self)
     
     @ui.button(label="🔀 隨機一本", style=discord.ButtonStyle.success, custom_id="search_random", row=3)
     async def random_button(self, interaction: discord.Interaction, button: ui.Button):
@@ -279,6 +327,39 @@ class SearchResultView(BaseView):
             msg_lines.append(f"🎬 原作: {', '.join(parodies)}")
         if languages:
             msg_lines.append(f"🌐 語言: {', '.join(languages)}")
+        if characters:
+            msg_lines.append(f"👤 角色: {', '.join(characters[:3])}" + (f" (+{len(characters)-3})" if len(characters) > 3 else ""))
+        
+        # 計算檔案大小和頁數
+        file_size_str = ""
+        page_count = 0
+        if folder_path:
+            try:
+                folder = Path(folder_path)
+                # 計算 PDF 檔案大小
+                pdf_files = list(folder.glob('*.pdf'))
+                if pdf_files:
+                    pdf_size = pdf_files[0].stat().st_size
+                    if pdf_size > 1024 * 1024:
+                        file_size_str = f"{pdf_size / (1024*1024):.1f} MB"
+                    else:
+                        file_size_str = f"{pdf_size / 1024:.0f} KB"
+                
+                # 計算頁數 (圖片數量)
+                image_exts = ['*.jpg', '*.jpeg', '*.png', '*.webp', '*.gif']
+                for ext in image_exts:
+                    page_count += len(list(folder.glob(ext)))
+            except Exception as e:
+                logger.debug(f"計算檔案資訊失敗: {e}")
+        
+        # 加入檔案大小和頁數
+        info_parts = []
+        if page_count > 0:
+            info_parts.append(f"📄 {page_count} 頁")
+        if file_size_str:
+            info_parts.append(f"💾 {file_size_str}")
+        if info_parts:
+            msg_lines.append(" | ".join(info_parts))
         
         if other_tags:
             msg_lines.append("")
@@ -298,6 +379,7 @@ class SearchResultView(BaseView):
             web_url=web_url,
             artists=artists,
             parodies=parodies,
+            characters=characters,
             other_tags=other_tags
         )
         

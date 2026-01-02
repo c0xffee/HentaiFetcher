@@ -1,9 +1,16 @@
 # Active Context
 
 ## Current Focus (目前焦點)
-- ✅ Discord UI 元件整合 v3.3.1 - 測試回饋修復完成
+- ✅ Discord UI 元件整合 v3.3.5 - 多項修復與增強
 
 ## Recent Changes (最近更動)
+- [x] 2026-01-03 多項修復與增強 (v3.3.5)
+  - **ReadDetailView 同角色按鈕**: 新增 CharacterSearchButton 搜尋同角色作品
+  - **修復 random_view ImportError**: 改用正確的 EagleLibrary + get_all_downloads_items
+  - **統一詳情顯示**: list/random/search 選擇本本時顯示頁數和檔案大小
+  - **移除重新下載按鈕**: ReadDetailView 不再顯示「📥 重新下載」
+  - **搜尋結果排序按鈕**: SearchResultView 新增排序功能 (預設/收藏數/隨機)
+  - **character 搜尋類型**: SearchResultView 支援 character 類型的 nhentai 連結
 - [x] 2026-01-03 詳細模式顯示檔案資訊 + 去除重複 URL (v3.3.4)
   - **詳細模式**: 搜尋結果顯示頁數 (📄) 和檔案大小 (💾)
   - **去除重複 URL**: 專用頻道和 /dl 指令輸入多筆時自動去重

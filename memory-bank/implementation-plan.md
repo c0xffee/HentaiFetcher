@@ -75,7 +75,7 @@
 
 ---
 
-## ⚡ Phase 4: PDF Linearization (PDF 線性化) - 進行中
+## ⚡ Phase 4: PDF Linearization (PDF 線性化) ✅ 完成
 > 使用 pikepdf 加速網頁 PDF 存取 (Fast Web View)
 
 ### Step 4.1: 小量測試 ✅ 完成
@@ -93,11 +93,12 @@
 - [x] 線性化並覆寫原檔
 - [x] 統計：196 個 PDF (4.61 GB)，耗時 196 秒，0 失敗
 
-### Step 4.3: 整合到 Bot 🔄 進行中
-- [ ] 修改 `run.py` 的 `convert_to_pdf()` 方法
-- [ ] 流程：Pillow → BytesIO → pikepdf 線性化 → 寫入檔案
-- [ ] 確保進度回報正常
-- [ ] 更新 Dockerfile 加入 pikepdf
+### Step 4.3: 整合到 Bot ✅ 完成
+- [x] 修改 `run.py` 的 `convert_to_pdf()` 方法
+- [x] 流程：Pillow → BytesIO → pikepdf 線性化 → 寫入檔案
+- [x] 進度回報改為 4 階段 (分析/等寬/生成/線性化)
+- [x] 更新 Dockerfile 加入 pikepdf
+- [x] 線性化失敗時自動 fallback 為非線性化存檔
 
 ---
 

@@ -1,10 +1,13 @@
 # Active Context
 
 ## Current Focus (目前焦點)
-- 🔄 PDF 線性化功能 (Fast Web View) - Phase 4 進行中
-- 階段 3：整合到 Bot (convert_to_pdf 自動線性化)
+- ✅ PDF 線性化功能 (Fast Web View) - Phase 4 完成
 
 ## Recent Changes (最近更動)
+- [x] 2026-01-04 階段 3 完成：整合到 Bot
+  - **convert_to_pdf()** 自動線性化 (4 階段進度)
+  - **Dockerfile** 加入 pikepdf 依賴
+  - **Fallback**: 線性化失敗時自動改用非線性化存檔
 - [x] 2026-01-04 階段 2 完成：現存 PDF 線性化
   - **linearize_existing.py** 腳本建立完成
   - **處理範圍**: downloads + imported + Eagle Library

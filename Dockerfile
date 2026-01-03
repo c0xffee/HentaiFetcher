@@ -39,7 +39,8 @@ RUN pip install --no-cache-dir \
     discord.py>=2.3.0 \
     gallery-dl>=1.26.0 \
     img2pdf>=0.5.0 \
-    Pillow>=10.0.0
+    Pillow>=10.0.0 \
+    pikepdf>=8.0.0
 
 # 建立必要目錄
 RUN mkdir -p /app/config /app/downloads /app/temp /app/bot/views

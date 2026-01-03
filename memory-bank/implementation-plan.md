@@ -78,20 +78,22 @@
 ## ⚡ Phase 4: PDF Linearization (PDF 線性化) - 進行中
 > 使用 pikepdf 加速網頁 PDF 存取 (Fast Web View)
 
-### Step 4.1: 小量測試 🔄 進行中
-- [ ] 安裝 pikepdf 依賴
-- [ ] 功能 1 測試：Pillow 製作 PDF → pikepdf 線性化
-- [ ] 功能 2 測試：現有 PDF → pikepdf 線性化
-- [ ] 產出測試 PDF 供效能驗證
+### Step 4.1: 小量測試 ✅ 完成
+- [x] 安裝 pikepdf 依賴
+- [x] 功能 1 測試：Pillow 製作 PDF → pikepdf 線性化
+- [x] 功能 2 測試：現有 PDF → pikepdf 線性化
+- [x] 產出測試 PDF 供效能驗證
+- [x] 效能測試通過 (143MB PDF 線性化僅需 1.33 秒)
 
-### Step 4.2: 現存 PDF 線性化 (一次性腳本)
-- [ ] 建立 `linearize_existing.py` 腳本
-- [ ] 掃描 `downloads/` 資料夾所有 PDF
-- [ ] 掃描 `imported/` 資料夾所有 PDF (Eagle 已匯入)
-- [ ] 線性化並覆寫原檔
-- [ ] 統計處理結果
+### Step 4.2: 現存 PDF 線性化 (一次性腳本) ✅ 完成
+- [x] 建立 `linearize_existing.py` 腳本
+- [x] 掃描 `downloads/` 資料夾所有 PDF
+- [x] 掃描 `imported/` 資料夾所有 PDF (Eagle 已匯入)
+- [x] 掃描 Eagle Library (`\\192.168.10.2\docker\Eagle\nHentai.library\images`)
+- [x] 線性化並覆寫原檔
+- [x] 統計：196 個 PDF (4.61 GB)，耗時 196 秒，0 失敗
 
-### Step 4.3: 整合到 Bot
+### Step 4.3: 整合到 Bot 🔄 進行中
 - [ ] 修改 `run.py` 的 `convert_to_pdf()` 方法
 - [ ] 流程：Pillow → BytesIO → pikepdf 線性化 → 寫入檔案
 - [ ] 確保進度回報正常

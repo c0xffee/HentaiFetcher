@@ -177,7 +177,7 @@ SECONDS_PER_PAGE = 3.6  # 預估每頁下載時間（實測平均值）
 PROGRESS_BAR_WIDTH = 15  # 進度條寬度（格數）
 
 # PDF Web 存取設定
-PDF_WEB_BASE_URL = "http://192.168.0.32:8888"  # Web Station 基礎 URL
+PDF_WEB_BASE_URL = "https://com1c.c0xffee.com"  # Web Station 基礎 URL (downloads)
 
 
 def create_progress_bar(current: int, total: int, width: int = PROGRESS_BAR_WIDTH) -> str:

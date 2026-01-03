@@ -12,6 +12,7 @@
 | discord.py | 2.x | Discord Bot 框架 |
 | gallery-dl | latest | 漫畫網站下載器 |
 | img2pdf | latest | 無損 PDF 轉換 |
+| pikepdf | latest | PDF 線性化 (Fast Web View) |
 | Pillow | latest | 圖片處理 |
 | requests | latest | HTTP 請求 |
 | python-dotenv | latest | 環境變數載入 (開發用) |

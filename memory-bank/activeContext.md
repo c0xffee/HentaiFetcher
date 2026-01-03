@@ -1,9 +1,14 @@
 # Active Context
 
 ## Current Focus (目前焦點)
-- ✅ Discord UI 元件整合 v3.3.9 - 按鈕簡化與統一
+- 🔄 PDF 線性化功能 (Fast Web View) - Phase 4 進行中
+- 階段 1：小量測試 pikepdf 線性化功能
 
 ## Recent Changes (最近更動)
+- [x] 2026-01-04 開始 PDF 線性化功能開發
+  - **新分支**: `feat/pdf-linearize`
+  - **目標**: 使用 pikepdf 加速網頁 PDF 存取
+  - **計劃**: 三階段實作 (測試 → 批次處理 → 整合 Bot)
 - [x] 2026-01-03 v3.3.9 按鈕簡化
   - **移除「詳細資訊」按鈕**: /random 已直接輸出詳細格式，無需額外按鈕
   - **移除「下載此本」按鈕**: 本子已在庫中，無需重新下載

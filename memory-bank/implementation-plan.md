@@ -75,20 +75,44 @@
 
 ---
 
-## 🔄 Phase 4: Refactoring (重構週期) - 待規劃
-> 程式碼品質改善
+## ⚡ Phase 4: PDF Linearization (PDF 線性化) - 進行中
+> 使用 pikepdf 加速網頁 PDF 存取 (Fast Web View)
 
-- [ ] Step 4.1: 模組化拆分 (run.py 目前約 3800 行)
-- [ ] Step 4.2: 新增單元測試
-- [ ] Step 4.3: 錯誤處理優化
+### Step 4.1: 小量測試 🔄 進行中
+- [ ] 安裝 pikepdf 依賴
+- [ ] 功能 1 測試：Pillow 製作 PDF → pikepdf 線性化
+- [ ] 功能 2 測試：現有 PDF → pikepdf 線性化
+- [ ] 產出測試 PDF 供效能驗證
+
+### Step 4.2: 現存 PDF 線性化 (一次性腳本)
+- [ ] 建立 `linearize_existing.py` 腳本
+- [ ] 掃描 `downloads/` 資料夾所有 PDF
+- [ ] 掃描 `imported/` 資料夾所有 PDF (Eagle 已匯入)
+- [ ] 線性化並覆寫原檔
+- [ ] 統計處理結果
+
+### Step 4.3: 整合到 Bot
+- [ ] 修改 `run.py` 的 `convert_to_pdf()` 方法
+- [ ] 流程：Pillow → BytesIO → pikepdf 線性化 → 寫入檔案
+- [ ] 確保進度回報正常
+- [ ] 更新 Dockerfile 加入 pikepdf
 
 ---
 
-## 🧪 Phase 5: Testing (測試建立) - 待規劃
+## 🔄 Phase 5: Refactoring (重構週期) - 待規劃
+> 程式碼品質改善
 
-- [ ] Step 5.1: 建立測試框架
-- [ ] Step 5.2: 核心功能單元測試
-- [ ] Step 5.3: 整合測試
+- [ ] Step 5.1: 模組化拆分 (run.py 目前約 3800 行)
+- [ ] Step 5.2: 新增單元測試
+- [ ] Step 5.3: 錯誤處理優化
+
+---
+
+## 🧪 Phase 6: Testing (測試建立) - 待規劃
+
+- [ ] Step 6.1: 建立測試框架
+- [ ] Step 6.2: 核心功能單元測試
+- [ ] Step 6.3: 整合測試
 
 ---
 

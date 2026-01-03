@@ -1402,10 +1402,11 @@ class DownloadProcessor:
     
     def convert_to_pdf(self, images: List[Path], output_pdf: Path) -> bool:
         """
-        使用 Pillow 將圖片轉換為等寬 PDF（支援進度回報）
+        使用 Pillow 將圖片轉換為等寬 PDF（支援進度回報 + 線性化）
         
         所有圖片會被調整為統一寬度（使用最大寬度），高度按比例縮放，
         確保 PDF 每一頁都是 100% 寬度對齊。
+        最後使用 pikepdf 線性化，加速網頁存取 (Fast Web View)。
         
         Args:
             images: 圖片檔案列表
@@ -1420,6 +1421,8 @@ class DownloadProcessor:
         
         try:
             from PIL import Image
+            from io import BytesIO
+            import pikepdf
             
             self.pdf_converting = True
             self.pdf_progress = 0
@@ -1427,12 +1430,12 @@ class DownloadProcessor:
             # 確保輸出目錄存在
             output_pdf.parent.mkdir(parents=True, exist_ok=True)
             
-            logger.info(f"轉換 {len(images)} 張圖片為等寬 PDF")
+            logger.info(f"轉換 {len(images)} 張圖片為等寬 PDF (含線性化)")
             
             total = len(images)
             
             # 階段 1: 讀取所有圖片並找出最大寬度 (0-20%)
-            logger.info("階段 1/3: 分析圖片尺寸...")
+            logger.info("階段 1/4: 分析圖片尺寸...")
             pil_images = []
             max_width = 0
             
@@ -1462,8 +1465,8 @@ class DownloadProcessor:
             
             logger.info(f"統一寬度: {max_width}px")
             
-            # 階段 2: 調整所有圖片為等寬 (20-70%)
-            logger.info("階段 2/3: 調整圖片為等寬...")
+            # 階段 2: 調整所有圖片為等寬 (20-60%)
+            logger.info("階段 2/4: 調整圖片為等寬...")
             resized_images = []
             
             for i, img in enumerate(pil_images):
@@ -1477,35 +1480,51 @@ class DownloadProcessor:
                 else:
                     resized_images.append(img)
                 
-                self.pdf_progress = 20 + int((i + 1) / total * 50)
+                self.pdf_progress = 20 + int((i + 1) / total * 40)
                 if (i + 1) % 10 == 0:
                     time.sleep(0.05)
             
-            # 階段 3: 儲存為 PDF (70-100%)
-            logger.info("階段 3/3: 生成 PDF...")
-            logger.info(f"PDF 輸出路徑: {output_pdf}")
-            logger.info(f"路徑長度: {len(str(output_pdf))} 字元")
-            self.pdf_progress = 75
+            # 階段 3: 生成 PDF 到記憶體 (60-80%)
+            logger.info("階段 3/4: 生成 PDF 到記憶體...")
+            self.pdf_progress = 65
             
             # 第一張圖片作為基底，其餘 append
             first_image = resized_images[0]
             rest_images = resized_images[1:] if len(resized_images) > 1 else []
             
+            # 先存到 BytesIO
+            pdf_buffer = BytesIO()
             try:
                 first_image.save(
-                    output_pdf,
+                    pdf_buffer,
                     "PDF",
                     save_all=True,
                     append_images=rest_images,
                     resolution=100.0
                 )
-                logger.info("PDF save 呼叫完成")
+                pdf_buffer.seek(0)
+                logger.info(f"PDF 記憶體大小: {len(pdf_buffer.getvalue()) / (1024*1024):.2f} MB")
             except Exception as save_error:
                 logger.error(f"PDF save 失敗: {save_error}")
                 import traceback
                 logger.error(traceback.format_exc())
                 self.pdf_converting = False
                 return False
+            
+            self.pdf_progress = 80
+            
+            # 階段 4: 使用 pikepdf 線性化 (80-100%)
+            logger.info("階段 4/4: PDF 線性化 (Fast Web View)...")
+            try:
+                with pikepdf.open(pdf_buffer) as pdf:
+                    pdf.save(output_pdf, linearize=True)
+                logger.info("PDF 線性化完成")
+            except Exception as linearize_error:
+                logger.warning(f"線性化失敗，改用非線性化存檔: {linearize_error}")
+                # 失敗時直接存檔（不線性化）
+                pdf_buffer.seek(0)
+                with open(output_pdf, 'wb') as f:
+                    f.write(pdf_buffer.getvalue())
             
             # 清理記憶體 - 使用 set 追蹤已關閉的圖片 id，避免比較操作
             closed_ids = set()

@@ -187,34 +187,20 @@ class TagListView(ui.View):
         # 取得當前頁的 tag
         page_tags = self._get_page_tags()
         
-        # 建立代碼塊列表 - 使用等寬字體對齊
+        # 建立列表 - 格式: 中文    📚 數量    🌐  數量    英文
         lines = []
         for tag, data in page_tags:
             zh = data.get('zh', '')
             local = data.get('local_count', 0)
             nhentai = data.get('nhentai_count', 0)
             
-            # 計算中文顯示寬度 (中文字=2, 英文/數字=1)
-            def display_width(s):
-                width = 0
-                for c in s:
-                    width += 2 if ord(c) > 127 else 1
-                return width
-            
-            # 中文名稱 (補齊到 12 寬度)
             zh_display = zh if zh else "⚠️未翻譯"
-            zh_width = display_width(zh_display)
-            zh_padding = "　" * ((12 - zh_width) // 2) + " " * ((12 - zh_width) % 2)
             
-            # 格式: 中文 | 本地 | nhentai | 英文
-            local_str = str(local).rjust(3)
-            nhentai_str = f"{nhentai:,}".rjust(8)
-            
-            lines.append(f"{zh_display}{zh_padding}│📚{local_str}│🌐{nhentai_str}│{tag}")
+            # 格式: 中文    📚 22    🌐  23,750    english
+            lines.append(f"{zh_display}    📚 {local}    🌐  {nhentai:,}    {tag}")
         
-        # 組合代碼塊
-        content = header + "```\n" + "\n".join(lines) + "\n```"
-        content += "\n*使用下拉選單搜尋同標籤作品*"
+        content = header + "\n".join(lines)
+        content += "\n\n*使用下拉選單搜尋同標籤作品*"
         
         return content
     

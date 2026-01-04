@@ -200,19 +200,31 @@ class TagListView(ui.View):
         # 取得當前頁的 tag
         page_tags = self._get_page_tags()
         
-        # 建立列表 - 新格式: 中文    📚本地    🌐nhentai  (英文)
+        # 建立列表 - 使用固定寬度對齊
+        # 格式: 中文(補齊8字) | 📚本地(補齊4位) | 🌐nhentai(補齊7位) | (英文)
         lines = []
         for tag, data in page_tags:
             zh = data.get('zh', '')
             local = data.get('local_count', 0)
             nhentai = data.get('nhentai_count', 0)
             
-            if zh:
-                # 格式: 中文    📚數量    🌐數量  (英文)
-                display = f"**{zh}**  📚{local}  🌐{nhentai:,}  (`{tag}`)"
-            else:
-                display = f"⚠️ _未翻譯_  📚{local}  🌐{nhentai:,}  (`{tag}`)"
+            # 計算中文顯示寬度 (中文字=2, 英文/數字=1)
+            def display_width(s):
+                width = 0
+                for c in s:
+                    width += 2 if ord(c) > 127 else 1
+                return width
             
+            # 補齊空格 (目標寬度 10)
+            zh_display = zh if zh else "⚠️未翻譯"
+            zh_width = display_width(zh_display)
+            zh_padding = " " * max(0, 10 - zh_width)
+            
+            # 數字右對齊
+            local_str = f"📚{local}".ljust(6)
+            nhentai_str = f"🌐{nhentai:,}".ljust(12)
+            
+            display = f"`{zh_display}{zh_padding}` {local_str} {nhentai_str} `{tag}`"
             lines.append(display)
         
         embed.add_field(

@@ -2,25 +2,130 @@
 Tag 管理相關斜線指令
 
 精簡版指令:
-- /tag list - 列出所有翻譯 (分頁、排序)
+- /tag - 列出所有翻譯 (分頁、排序、選擇搜尋)
 - /tag missing - 查看未翻譯標籤
 - /tag update - 更新標籤翻譯 (只能修改已存在的)
 - /tag reload - 重新載入字典
+- /tag sync - 同步 nhentai 計數
 """
 
+import asyncio
 import discord
 from discord import app_commands, ui
 from discord.ext import commands
 from typing import Optional, List
 
 from core.config import logger
-from services.tag_translator import get_translator
+from services.tag_translator import get_translator, fetch_nhentai_tag_count
 from services.index_service import get_all_downloads_items
 from eagle_library import EagleLibrary
 
 
+class TagSelectMenu(ui.Select):
+    """標籤選擇下拉選單 - 選擇後搜尋同標籤作品"""
+    
+    def __init__(self, tags: List[tuple], page: int = 0):
+        """
+        Args:
+            tags: [(tag, data), ...] 當前頁的 tags
+            page: 當前頁碼
+        """
+        options = []
+        translator = get_translator()
+        
+        # 最多顯示 25 個標籤
+        for tag, data in tags[:25]:
+            zh = data.get('zh', '')
+            local = data.get('local_count', 0)
+            nhentai = data.get('nhentai_count', 0)
+            
+            # 顯示名稱: 中文 (英文) 或只有英文
+            if zh:
+                label = f"{zh}"[:50]
+                description = f"{tag} | 📚{local} 🌐{nhentai:,}"[:100]
+            else:
+                label = f"{tag}"[:50]
+                description = f"⚠️ 未翻譯 | 📚{local} 🌐{nhentai:,}"[:100]
+            
+            options.append(discord.SelectOption(
+                label=label,
+                value=tag,
+                description=description,
+                emoji="🏷️"
+            ))
+        
+        if not options:
+            options.append(discord.SelectOption(
+                label="無可用標籤",
+                value="_none_"
+            ))
+        
+        super().__init__(
+            placeholder="🔍 選擇標籤搜尋同類作品...",
+            min_values=1,
+            max_values=1,
+            options=options,
+            custom_id="tag_search_select",
+            row=2
+        )
+    
+    async def callback(self, interaction: discord.Interaction):
+        """選擇標籤後搜尋"""
+        selected_tag = self.values[0]
+        
+        if selected_tag == "_none_":
+            await interaction.response.send_message("❌ 無可用標籤", ephemeral=True)
+            return
+        
+        await interaction.response.defer()
+        
+        try:
+            translator = get_translator()
+            translated = translator.translate(selected_tag, track_missing=False)
+            
+            results = []
+            
+            # 搜尋 Eagle
+            try:
+                eagle = EagleLibrary()
+                eagle_results = eagle.find_by_tag(selected_tag)
+                for r in eagle_results:
+                    r['source'] = 'eagle'
+                    results.append(r)
+            except Exception as e:
+                logger.debug(f"Eagle 搜尋錯誤: {e}")
+            
+            # 搜尋 Downloads
+            for item in get_all_downloads_items():
+                item_tags = item.get('tags', [])
+                if selected_tag.lower() in [t.lower() for t in item_tags]:
+                    if not any(r.get('nhentai_id') == item.get('nhentai_id') for r in results):
+                        results.append(item)
+            
+            if not results:
+                await interaction.followup.send(
+                    f"🔍 找不到包含標籤 `{translated}` (`{selected_tag}`) 的作品"
+                )
+                return
+            
+            # 使用 SearchResultView 顯示
+            from bot.views.search_view import SearchResultView
+            
+            view = SearchResultView(
+                results, 
+                translated,
+                search_type="tag"
+            )
+            
+            await interaction.followup.send(embed=view.get_embed(), view=view)
+            
+        except Exception as e:
+            logger.error(f"標籤搜尋失敗: {e}", exc_info=True)
+            await interaction.followup.send(f"❌ 搜尋失敗: {e}", ephemeral=True)
+
+
 class TagListView(ui.View):
-    """Tag 列表分頁視圖"""
+    """Tag 列表分頁視圖 (含選單搜尋)"""
     
     def __init__(
         self,
@@ -30,20 +135,37 @@ class TagListView(ui.View):
         per_page: int = 15
     ):
         super().__init__(timeout=300)
-        self.tags = tags
+        self.all_tags = tags
         self.sort_by = sort_by
         self.page = page
         self.per_page = per_page
         self.total_pages = max(1, (len(tags) + per_page - 1) // per_page)
         
-        self._update_buttons()
+        self._update_view()
     
-    def _update_buttons(self):
-        """更新按鈕狀態"""
+    def _get_page_tags(self) -> List[tuple]:
+        """取得當前頁的 tags"""
+        start = self.page * self.per_page
+        end = start + self.per_page
+        return self.all_tags[start:end]
+    
+    def _update_view(self):
+        """更新按鈕狀態和選單"""
+        # 更新分頁按鈕
         self.first_btn.disabled = self.page == 0
         self.prev_btn.disabled = self.page == 0
         self.next_btn.disabled = self.page >= self.total_pages - 1
         self.last_btn.disabled = self.page >= self.total_pages - 1
+        
+        # 移除舊的 Select Menu (row=2)
+        to_remove = [item for item in self.children if isinstance(item, ui.Select)]
+        for item in to_remove:
+            self.remove_item(item)
+        
+        # 添加新的 Select Menu
+        page_tags = self._get_page_tags()
+        if page_tags:
+            self.add_item(TagSelectMenu(page_tags, self.page))
     
     def get_embed(self) -> discord.Embed:
         """生成 Embed"""
@@ -52,7 +174,7 @@ class TagListView(ui.View):
         
         embed = discord.Embed(
             title="🏷️ 標籤翻譯字典",
-            description=f"共 {stats['total_tags']} 個標籤 | 已翻譯 {stats['translated']} | 未翻譯 {stats['untranslated']}",
+            description=f"共 **{stats['total_tags']}** 個標籤 | ✅ 已翻譯 {stats['translated']} | ⚠️ 未翻譯 {stats['untranslated']}",
             color=discord.Color.blue()
         )
         
@@ -72,12 +194,10 @@ class TagListView(ui.View):
             value=f"{self.page + 1} / {self.total_pages}",
             inline=True
         )
-        embed.add_field(name="\u200b", value="\u200b", inline=True)  # 空白欄
+        embed.add_field(name="\u200b", value="\u200b", inline=True)
         
         # 取得當前頁的 tag
-        start = self.page * self.per_page
-        end = start + self.per_page
-        page_tags = self.tags[start:end]
+        page_tags = self._get_page_tags()
         
         # 建立列表
         lines = []
@@ -92,15 +212,7 @@ class TagListView(ui.View):
                 display = f"`{tag}` → ⚠️ _未翻譯_"
             
             # 數量顯示
-            counts = []
-            if local > 0:
-                counts.append(f"📚{local}")
-            if nhentai > 0:
-                counts.append(f"🌐{nhentai:,}")
-            
-            if counts:
-                display += f" ({', '.join(counts)})"
-            
+            display += f" (📚{local}, 🌐{nhentai:,})"
             lines.append(display)
         
         embed.add_field(
@@ -109,85 +221,82 @@ class TagListView(ui.View):
             inline=False
         )
         
-        embed.set_footer(text="使用 /tag update <英文> <中文> 更新翻譯")
+        embed.set_footer(text="使用下拉選單搜尋同標籤作品 | /tag update <英文> <中文> 更新翻譯")
         
         return embed
     
-    @ui.button(label="⏮️", style=discord.ButtonStyle.secondary, custom_id="tag_first")
+    @ui.button(label="⏮️", style=discord.ButtonStyle.secondary, custom_id="tag_first", row=0)
     async def first_btn(self, interaction: discord.Interaction, button: ui.Button):
         self.page = 0
-        self._update_buttons()
+        self._update_view()
         await interaction.response.edit_message(embed=self.get_embed(), view=self)
     
-    @ui.button(label="◀️", style=discord.ButtonStyle.primary, custom_id="tag_prev")
+    @ui.button(label="◀️", style=discord.ButtonStyle.primary, custom_id="tag_prev", row=0)
     async def prev_btn(self, interaction: discord.Interaction, button: ui.Button):
         self.page = max(0, self.page - 1)
-        self._update_buttons()
+        self._update_view()
         await interaction.response.edit_message(embed=self.get_embed(), view=self)
     
-    @ui.button(label="▶️", style=discord.ButtonStyle.primary, custom_id="tag_next")
+    @ui.button(label="▶️", style=discord.ButtonStyle.primary, custom_id="tag_next", row=0)
     async def next_btn(self, interaction: discord.Interaction, button: ui.Button):
         self.page = min(self.total_pages - 1, self.page + 1)
-        self._update_buttons()
+        self._update_view()
         await interaction.response.edit_message(embed=self.get_embed(), view=self)
     
-    @ui.button(label="⏭️", style=discord.ButtonStyle.secondary, custom_id="tag_last")
+    @ui.button(label="⏭️", style=discord.ButtonStyle.secondary, custom_id="tag_last", row=0)
     async def last_btn(self, interaction: discord.Interaction, button: ui.Button):
         self.page = self.total_pages - 1
-        self._update_buttons()
+        self._update_view()
         await interaction.response.edit_message(embed=self.get_embed(), view=self)
     
     @ui.button(label="📚 本地", style=discord.ButtonStyle.secondary, custom_id="sort_local", row=1)
     async def sort_local_btn(self, interaction: discord.Interaction, button: ui.Button):
         translator = get_translator()
-        self.tags = translator.get_all_tags_sorted("local")
+        self.all_tags = translator.get_all_tags_sorted("local")
         self.sort_by = "local"
         self.page = 0
-        self._update_buttons()
+        self._update_view()
         await interaction.response.edit_message(embed=self.get_embed(), view=self)
     
     @ui.button(label="🌐 nhentai", style=discord.ButtonStyle.secondary, custom_id="sort_nhentai", row=1)
     async def sort_nhentai_btn(self, interaction: discord.Interaction, button: ui.Button):
         translator = get_translator()
-        self.tags = translator.get_all_tags_sorted("nhentai")
+        self.all_tags = translator.get_all_tags_sorted("nhentai")
         self.sort_by = "nhentai"
         self.page = 0
-        self._update_buttons()
+        self._update_view()
         await interaction.response.edit_message(embed=self.get_embed(), view=self)
     
     @ui.button(label="🔤 字母", style=discord.ButtonStyle.secondary, custom_id="sort_alpha", row=1)
     async def sort_alpha_btn(self, interaction: discord.Interaction, button: ui.Button):
         translator = get_translator()
-        self.tags = translator.get_all_tags_sorted("alpha")
+        self.all_tags = translator.get_all_tags_sorted("alpha")
         self.sort_by = "alpha"
         self.page = 0
-        self._update_buttons()
+        self._update_view()
         await interaction.response.edit_message(embed=self.get_embed(), view=self)
 
 
 class TagCommands(commands.Cog):
-    """Tag 翻譯管理指令群組 (精簡版)"""
+    """Tag 翻譯管理指令群組"""
     
     def __init__(self, bot: commands.Bot):
         self.bot = bot
     
-    tag_group = app_commands.Group(name="tag", description="標籤翻譯管理")
-    
-    @tag_group.command(name="list", description="列出所有標籤翻譯")
-    @app_commands.describe(
-        sort="排序方式"
-    )
+    # 主指令: /tag - 直接顯示列表
+    @app_commands.command(name="tag", description="顯示標籤翻譯字典 (分頁、排序、搜尋)")
+    @app_commands.describe(sort="排序方式")
     @app_commands.choices(sort=[
         app_commands.Choice(name="📚 本地數量", value="local"),
         app_commands.Choice(name="🌐 nhentai 數量", value="nhentai"),
         app_commands.Choice(name="🔤 字母順序", value="alpha"),
     ])
-    async def tag_list(
+    async def tag_main(
         self,
         interaction: discord.Interaction,
         sort: str = "local"
     ):
-        """列出所有翻譯"""
+        """列出所有翻譯 (主指令)"""
         await interaction.response.defer()
         
         translator = get_translator()
@@ -200,11 +309,11 @@ class TagCommands(commands.Cog):
         view = TagListView(tags, sort_by=sort)
         await interaction.followup.send(embed=view.get_embed(), view=view)
     
-    @tag_group.command(name="missing", description="查看未翻譯的標籤")
-    async def tag_missing(
-        self,
-        interaction: discord.Interaction
-    ):
+    # 子指令群組
+    tagcmd = app_commands.Group(name="tagcmd", description="標籤管理指令")
+    
+    @tagcmd.command(name="missing", description="查看未翻譯的標籤")
+    async def tag_missing(self, interaction: discord.Interaction):
         """查看未翻譯標籤"""
         await interaction.response.defer()
         
@@ -212,19 +321,15 @@ class TagCommands(commands.Cog):
         missing = translator.get_untranslated()
         
         if not missing:
-            await interaction.followup.send(
-                "✅ 太棒了！目前沒有未翻譯的標籤"
-            )
+            await interaction.followup.send("✅ 太棒了！目前沒有未翻譯的標籤")
             return
         
-        # 建立 Embed
         embed = discord.Embed(
             title="⚠️ 未翻譯標籤清單",
             description=f"共 {len(missing)} 個標籤尚未翻譯",
             color=discord.Color.orange()
         )
         
-        # 顯示標籤
         tags_text = ", ".join([f"`{tag}`" for tag in missing[:50]])
         if len(missing) > 50:
             tags_text += f"\n... 還有 {len(missing) - 50} 個"
@@ -234,11 +339,8 @@ class TagCommands(commands.Cog):
         
         await interaction.followup.send(embed=embed)
     
-    @tag_group.command(name="update", description="更新標籤翻譯 (僅限已存在的標籤)")
-    @app_commands.describe(
-        english="英文標籤",
-        chinese="繁體中文翻譯"
-    )
+    @tagcmd.command(name="update", description="更新標籤翻譯 (僅限已存在的標籤)")
+    @app_commands.describe(english="英文標籤", chinese="繁體中文翻譯")
     async def tag_update(
         self,
         interaction: discord.Interaction,
@@ -257,11 +359,8 @@ class TagCommands(commands.Cog):
         else:
             await interaction.followup.send(f"❌ {message}", ephemeral=True)
     
-    @tag_group.command(name="reload", description="重新載入標籤字典")
-    async def tag_reload(
-        self,
-        interaction: discord.Interaction
-    ):
+    @tagcmd.command(name="reload", description="重新載入標籤字典")
+    async def tag_reload(self, interaction: discord.Interaction):
         """重新載入字典"""
         await interaction.response.defer()
         
@@ -274,6 +373,102 @@ class TagCommands(commands.Cog):
             f"📊 共 {stats['total_tags']} 個標籤 | 已翻譯 {stats['translated']} | 未翻譯 {stats['untranslated']}"
         )
         logger.info(f"Tag 字典重載: {count} 個標籤")
+    
+    @tagcmd.command(name="sync", description="同步 nhentai 計數 (補齊缺失的數據)")
+    async def tag_sync(self, interaction: discord.Interaction):
+        """
+        同步 nhentai 計數
+        1. 補齊 nhentai_count = 0 的 tag
+        2. 重新計算 local_count
+        """
+        await interaction.response.defer()
+        
+        translator = get_translator()
+        
+        # 找出需要更新 nhentai_count 的 tags
+        tags_need_nhentai = []
+        for tag, data in translator.dictionary.items():
+            if data.get('nhentai_count', 0) == 0:
+                tags_need_nhentai.append(tag)
+        
+        total = len(tags_need_nhentai)
+        
+        if total == 0:
+            await interaction.followup.send("✅ 所有標籤都已有 nhentai 計數，無需同步")
+            return
+        
+        # 發送初始訊息
+        msg = await interaction.followup.send(
+            f"🔄 開始同步 nhentai 計數...\n"
+            f"📊 共 {total} 個標籤需要更新",
+            wait=True
+        )
+        
+        success_count = 0
+        fail_count = 0
+        
+        # 批量抓取 (每 5 個更新一次進度)
+        for i, tag in enumerate(tags_need_nhentai):
+            try:
+                count = await fetch_nhentai_tag_count(tag)
+                if count > 0:
+                    translator.dictionary[tag]['nhentai_count'] = count
+                    success_count += 1
+                else:
+                    fail_count += 1
+                
+                # 避免請求過快
+                await asyncio.sleep(0.5)
+                
+                # 每 5 個更新進度
+                if (i + 1) % 5 == 0 or (i + 1) == total:
+                    progress = (i + 1) / total * 100
+                    await msg.edit(content=(
+                        f"🔄 同步中... {progress:.0f}%\n"
+                        f"✅ 成功: {success_count} | ❌ 失敗: {fail_count} | 📊 進度: {i + 1}/{total}"
+                    ))
+                    
+            except Exception as e:
+                logger.error(f"同步 tag '{tag}' 失敗: {e}")
+                fail_count += 1
+        
+        # 重新計算 local_count
+        await msg.edit(content=f"🔄 重新計算本地數量...")
+        
+        # 重置所有 local_count
+        for tag in translator.dictionary:
+            translator.dictionary[tag]['local_count'] = 0
+        
+        # 計算 Eagle
+        try:
+            eagle = EagleLibrary()
+            for item in eagle.get_all_items():
+                tags = item.get('tags', [])
+                for tag in tags:
+                    tag_lower = tag.lower()
+                    if tag_lower in translator.dictionary:
+                        translator.dictionary[tag_lower]['local_count'] += 1
+        except Exception as e:
+            logger.debug(f"Eagle 計算失敗: {e}")
+        
+        # 計算 Downloads
+        for item in get_all_downloads_items():
+            tags = item.get('tags', [])
+            for tag in tags:
+                tag_lower = tag.lower()
+                if tag_lower in translator.dictionary:
+                    translator.dictionary[tag_lower]['local_count'] += 1
+        
+        # 儲存
+        translator.save()
+        
+        await msg.edit(content=(
+            f"✅ 同步完成!\n"
+            f"📊 nhentai 計數: 成功 {success_count} / 失敗 {fail_count}\n"
+            f"📚 本地計數: 已重新計算"
+        ))
+        
+        logger.info(f"Tag sync 完成: nhentai={success_count}/{total}, local=重新計算")
 
 
 async def setup(bot: commands.Bot):

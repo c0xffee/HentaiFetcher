@@ -111,10 +111,11 @@ def setup_info_commands(bot):
         
         embed.add_field(
             name="🏷️ 標籤翻譯",
-            value="`/tag list` - 列出字典\n"
-                  "`/tag missing` - 未翻譯清單\n"
-                  "`/tag update` - 更新翻譯\n"
-                  "`/tag reload` - 重載字典",
+            value="`/tag` - 標籤字典 (搜尋)\n"
+                  "`/tagcmd missing` - 未翻譯清單\n"
+                  "`/tagcmd update` - 更新翻譯\n"
+                  "`/tagcmd sync` - 同步計數\n"
+                  "`/tagcmd reload` - 重載字典",
             inline=True
         )
         

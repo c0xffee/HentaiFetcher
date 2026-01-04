@@ -21,7 +21,7 @@
 ┌─────────────────────────────────────────────────────────┐
 │                    Discord Server                        │
 │                         │                                │
-│                    !dl <url>                             │
+│                    /dl <url>                             │
 └─────────────────────────┬───────────────────────────────┘
                           │
                           ▼
@@ -49,10 +49,53 @@
 ## File Structure (檔案結構)
 ```
 HentaiFetcher/
-├── run.py              # 主程式 (Discord Bot + 下載邏輯)
+├── run.py              # 啟動器 (Entry Point, ~100 lines)
+├── eagle_library.py    # Eagle Library 操作模組
+├── imports-index.json  # 已匯入項目索引 (供插件讀取)
 ├── Dockerfile          # Docker 映像定義
 ├── docker-compose.yml  # Docker Compose 設定
 ├── .env                # 環境變數 (DISCORD_TOKEN)
+│
+├── core/               # 核心模組 (v3.4.0+)
+│   ├── __init__.py
+│   ├── config.py       # 配置、路徑、常數、logger
+│   ├── batch_manager.py # 佇列管理、批次追蹤
+│   ├── download_processor.py # 下載處理邏輯
+│   └── download_worker.py    # 背景下載 Worker
+│
+├── utils/              # 工具函式 (v3.4.0+)
+│   ├── __init__.py
+│   ├── helpers.py      # 純工具函式 (sanitize, progress bar)
+│   └── url_parser.py   # URL 解析
+│
+├── services/           # 服務層 (v3.4.0+)
+│   ├── __init__.py
+│   ├── nhentai_api.py  # nhentai API 互動
+│   ├── metadata_service.py # Metadata 解析與生成
+│   └── index_service.py    # 索引管理與搜尋
+│
+├── bot/                # Discord Bot 模組
+│   ├── __init__.py
+│   ├── bot.py          # HentaiFetcherBot 類別 (v3.4.0+)
+│   ├── commands/       # 斜線指令模組 (v3.4.0+)
+│   │   ├── __init__.py
+│   │   ├── download_cmd.py   # /dl
+│   │   ├── search_cmd.py     # /search
+│   │   ├── read_cmd.py       # /read
+│   │   ├── random_cmd.py     # /random
+│   │   ├── list_cmd.py       # /list
+│   │   ├── admin_cmd.py      # /sync, /reindex, /cleanup
+│   │   └── info_cmd.py       # /help, /ping, /version, /status
+│   └── views/          # UI 元件 (View/Button/Select)
+│       ├── base.py
+│       ├── search_view.py
+│       ├── read_view.py
+│       ├── random_view.py
+│       ├── download_view.py
+│       ├── list_view.py
+│       ├── cleanup_view.py
+│       └── helpers.py
+│
 ├── config/
 │   ├── gallery-dl.conf # gallery-dl 設定
 │   └── bot.log         # 日誌檔案
@@ -60,7 +103,7 @@ HentaiFetcher/
 ├── imported/           # Eagle 匯入後歸檔位置
 ├── temp/               # 暫存下載檔案
 ├── memory-bank/        # Vibe Coding 文件
-└── nHentai-Auto-Importer/  # nHentai NAS 自動入庫插件
+└── nHentai-Auto-Importer/  # Eagle NAS 自動入庫插件
     ├── manifest.json   # 插件描述檔
     ├── index.html      # 插件 UI
     └── js/

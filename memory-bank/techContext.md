@@ -9,11 +9,10 @@
 ### Core Dependencies
 | 套件 | 版本 | 用途 |
 |------|------|------|
-| discord.py | 2.x | Discord Bot 框架 |
+| discord.py | 2.x | Discord Bot 框架 (Slash Commands) |
 | gallery-dl | latest | 漫畫網站下載器 |
-| img2pdf | latest | 無損 PDF 轉換 |
 | pikepdf | latest | PDF 線性化 (Fast Web View) |
-| Pillow | latest | 圖片處理 |
+| Pillow | latest | 圖片處理 + PDF 生成 |
 | requests | latest | HTTP 請求 |
 | python-dotenv | latest | 環境變數載入 (開發用) |
 
@@ -41,9 +40,11 @@
 ## Eagle Auto-Importer 插件
 - **類型**: Background Service
 - **執行環境**: Eagle Plugin API (基於 Node.js)
-- **監控路徑**: `\\192.168.0.32\docker\HentaiFetcher\downloads`
-- **歸檔路徑**: `\\192.168.0.32\docker\HentaiFetcher\imported`
+- **監控路徑**: `Z:\HentaiFetcher\downloads` (映射磁碟機)
+- **歸檔路徑**: `Z:\HentaiFetcher\imported`
+- **索引檔案**: `Z:\HentaiFetcher\imports-index.json`
 - **掃描間隔**: 30 秒
+- **注意**: Eagle API 不支援 UNC 路徑，必須使用映射磁碟機
 
 ## Development Environment
 - **IDE**: VS Code + GitHub Copilot
@@ -80,6 +81,44 @@ artist_search:{artist}    # 搜尋同作者
 parody_search:{parody}    # 搜尋同原作
 random:1                  # 再抽一次
 open_pdf:{nhentai_id}     # 開啟 PDF (Link Button)
+```
+
+## Project Structure (專案結構)
+> v3.4.0 模組化架構
+
+```
+HentaiFetcher/
+├── run.py              # 啟動器 (~80 lines)
+├── core/               # 核心模組
+│   ├── config.py       # 配置、路徑、常數、Logger
+│   ├── batch_manager.py # 佇列管理、批次追蹤
+│   ├── download_processor.py # 下載處理邏輯
+│   └── download_worker.py    # 背景下載 Worker
+├── utils/              # 工具函式
+│   ├── helpers.py      # 純工具函式
+│   └── url_parser.py   # URL 解析
+├── services/           # 服務層
+│   ├── nhentai_api.py  # nhentai API
+│   ├── metadata_service.py # Metadata 服務
+│   └── index_service.py    # 索引與搜尋
+├── bot/                # Discord Bot
+│   ├── bot.py          # HentaiFetcherBot 類別
+│   ├── commands/       # 斜線指令模組
+│   │   ├── download.py # /dl, /queue
+│   │   ├── info.py     # /ping, /version, /status, /help
+│   │   ├── library.py  # /list, /random, /search, /read...
+│   │   └── admin.py    # /sync
+│   └── views/          # Discord UI 元件
+│       ├── base.py
+│       ├── search_view.py
+│       ├── read_view.py
+│       ├── random_view.py
+│       ├── download_view.py
+│       ├── list_view.py
+│       ├── cleanup_view.py
+│       └── helpers.py
+├── eagle_library.py    # Eagle Library 操作
+└── memory-bank/        # 專案文件
 ```
 
 ## Future Considerations (未來考量)

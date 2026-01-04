@@ -1,9 +1,36 @@
 # Active Context
 
 ## Current Focus (目前焦點)
-- ✅ PDF 線性化功能 (Fast Web View) - Phase 4 完成
+- ✅ run.py 模組化重構完成 (refactor/modularize-run-py 分支)
 
 ## Recent Changes (最近更動)
+- [x] 2026-01-05 完成 run.py 模組化重構 v3.4.0
+  - **新分支**: `refactor/modularize-run-py`
+  - **原始狀態**: run.py 3834 行，80 個函數/類別 (God Object)
+  - **重構後**: run.py 約 80 行，純啟動器
+  - **新架構**:
+    - `core/` 目錄：
+      - `config.py` - 配置、路徑、常數、Logger
+      - `batch_manager.py` - 佇列管理、取消事件、批次追蹤
+      - `download_processor.py` - DownloadProcessor 類別
+      - `download_worker.py` - DownloadWorker 類別
+    - `utils/` 目錄：
+      - `helpers.py` - 純工具函數 (sanitize, progress_bar 等)
+      - `url_parser.py` - URL 解析
+    - `services/` 目錄：
+      - `nhentai_api.py` - nhentai API 服務
+      - `metadata_service.py` - Metadata 解析與生成
+      - `index_service.py` - 索引與搜尋服務
+    - `bot/` 目錄：
+      - `bot.py` - HentaiFetcherBot 類別
+      - `commands/__init__.py` - 指令設定
+      - `commands/download.py` - /dl, /queue
+      - `commands/info.py` - /ping, /version, /status, /help
+      - `commands/library.py` - /list, /random, /search, /read, /fixcover, /cleanup, /eagle, /reindex
+      - `commands/admin.py` - /sync
+  - **版本號**: 3.4.0 (模組化版本)
+  - **備份**: run.py.bak (原始 3962 行)
+  - **待測試**: run_new.py (簡化版啟動器)
 - [x] 2026-01-04 階段 3 完成：整合到 Bot
   - **convert_to_pdf()** 自動線性化 (4 階段進度)
   - **Dockerfile** 加入 pikepdf 依賴
@@ -117,10 +144,12 @@
   - `/dl` 指令加入 `force` 參數強制重新下載
 
 ## Next Steps (下一步)
-- [ ] 重新部署 Docker 並測試新功能
-- [ ] 測試 `/random` 來源參數
-- [ ] 測試批次下載總結功能
+- [ ] 測試 run_new.py 功能是否正常
+- [ ] 確認所有斜線指令可正常運作
+- [ ] 合併到 main 分支
 
 ## Notes (備註)
-- 專案版本：v3.1.0
-- 主要程式：run.py
+- 專案版本：v3.4.0 (模組化版本)
+- 主程式：run_new.py (新) / run.py.bak (舊)
+- 核心模組：core/, utils/, services/
+- Bot 模組：bot/ (含 commands/, views/)

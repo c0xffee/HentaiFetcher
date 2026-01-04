@@ -1,9 +1,17 @@
 # Active Context
 
 ## Current Focus (目前焦點)
-- 🔄 Tag 翻譯系統開發中 (feat/tag-translation 分支)
+- ✅ Tag 翻譯系統完成 (feat/tag-translation 分支)
 
 ## Recent Changes (最近更動)
+- [x] 2026-01-05 Tag 系統大幅增強 v3.5.1
+  - **移除截斷**: Tag 不再顯示 `(+9)` 截斷，顯示全部
+  - **精簡指令**: `/tag` 只保留 4 個子指令 (list, missing, update, reload)
+  - **全新 TagListView**: 分頁 + 3 種排序 (本地📚、nhentai🌐、字母🔤)
+  - **字典升級 v2.0.0**: 新格式 `{zh, nhentai_count, local_count}`
+  - **nhentai 計數**: 下載新書時自動從 nhentai 抓取 tag 計數
+  - **新增 6 翻譯**: ball caressing, nipple stimulation, onahole, orgasm denial, tickling, tutor
+  - **總計 237 個翻譯**
 - [x] 2026-01-05 修復 import 錯誤 + 自動註冊新 tag
   - **修復**: views 模組的 `from run import` 改為正確的模組路徑
   - **修復**: `download_view.py`, `helpers.py`, `random_view.py`, `read_view.py`

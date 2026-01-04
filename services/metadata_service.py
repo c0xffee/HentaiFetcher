@@ -418,8 +418,8 @@ def _register_new_tags(tags: List[str]) -> int:
     自動註冊新 tag 到翻譯字典
     
     - 有前綴的 tag (artist:, parody:, group: 等) 會被忽略
-    - 沒有翻譯的 tag 會被加入字典，value 為空字串
-    - 已有翻譯的 tag 不會被覆蓋
+    - 新 tag 會被加入字典
+    - 已有的 tag 會增加 local_count
     
     Args:
         tags: tag 列表
@@ -446,19 +446,71 @@ def _register_new_tags(tags: List[str]) -> int:
             if not tag_lower:
                 continue
             
-            # 檢查是否已在字典中
-            if tag_lower not in translator.dictionary:
-                # 新增到字典 (空字串表示未翻譯)
-                translator.dictionary[tag_lower] = ""
+            # 使用新的 register_tag 方法
+            is_new = translator.register_tag(tag_lower)
+            if is_new:
                 new_count += 1
         
-        # 如果有新 tag，儲存字典
+        # 儲存字典
+        translator.save()
+        
         if new_count > 0:
-            translator._save_dictionary()
             logger.debug(f"自動註冊 {new_count} 個新 tag 到翻譯字典")
         
         return new_count
         
     except Exception as e:
         logger.warning(f"註冊新 tag 失敗: {e}")
+        return 0
+
+
+async def register_new_tags_async(tags: List[str]) -> int:
+    """
+    非同步註冊新 tag (含抓取 nhentai 數量)
+    
+    Args:
+        tags: tag 列表
+        
+    Returns:
+        新增的 tag 數量
+    """
+    from services.tag_translator import fetch_nhentai_tag_count
+    
+    try:
+        translator = get_translator()
+        new_count = 0
+        
+        skip_prefixes = ['artist:', 'parody:', 'group:', 'language:', 'character:', 'type:', 'category:']
+        
+        for tag in tags:
+            if not isinstance(tag, str):
+                continue
+            
+            if any(tag.startswith(prefix) for prefix in skip_prefixes):
+                continue
+            
+            tag_lower = tag.lower().strip()
+            if not tag_lower:
+                continue
+            
+            # 檢查是否為新 tag
+            if tag_lower not in translator.dictionary:
+                # 抓取 nhentai 數量
+                nhentai_count = await fetch_nhentai_tag_count(tag_lower)
+                translator.register_tag(tag_lower, nhentai_count)
+                new_count += 1
+                logger.debug(f"新 tag: {tag_lower} (nhentai: {nhentai_count})")
+            else:
+                # 已存在，只增加 local_count
+                translator.register_tag(tag_lower)
+        
+        translator.save()
+        
+        if new_count > 0:
+            logger.info(f"自動註冊 {new_count} 個新 tag 到翻譯字典")
+        
+        return new_count
+        
+    except Exception as e:
+        logger.warning(f"非同步註冊新 tag 失敗: {e}")
         return 0

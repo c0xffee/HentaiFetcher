@@ -3,15 +3,16 @@ Tag Translator Service - 標籤翻譯服務
 =====================================
 功能：
 - 英文 tag → 繁體中文翻譯
-- 單一翻譯 / 批量翻譯
-- 追蹤未翻譯 tag
-- 動態新增翻譯
+- 追蹤本地使用量和 nhentai 作品數
+- 動態更新翻譯
 """
 
 import json
 import logging
+import re
+import aiohttp
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Any
 from datetime import datetime
 
 logger = logging.getLogger('HentaiFetcher.tag_translator')
@@ -24,16 +25,23 @@ class TagTranslator:
     """
     Tag 翻譯服務
     
-    使用方式:
-        translator = TagTranslator()
-        zh_tag = translator.translate("lolicon")  # → "蘿莉控"
-        zh_tags = translator.translate_many(["swimsuit", "bikini"])  # → ["泳裝", "比基尼"]
+    字典結構:
+    {
+        "_meta": {...},
+        "tags": {
+            "lolicon": {
+                "zh": "蘿莉控",
+                "nhentai_count": 12345,
+                "local_count": 5
+            }
+        }
+    }
     """
     
     _instance: Optional['TagTranslator'] = None
     
     def __new__(cls, dict_path: Path = None):
-        """單例模式 - 確保全域共用同一個 translator 實例"""
+        """單例模式"""
         if cls._instance is None:
             cls._instance = super().__new__(cls)
             cls._instance._initialized = False
@@ -45,8 +53,8 @@ class TagTranslator:
             return
             
         self.dict_path = dict_path or DEFAULT_DICT_PATH
-        self.dictionary: Dict[str, str] = {}
-        self.untranslated: set = set()  # 追蹤未翻譯的 tag
+        self.dictionary: Dict[str, Dict[str, Any]] = {}  # {tag: {zh, nhentai_count, local_count}}
+        self.untranslated: set = set()
         self._load_dictionary()
         self._initialized = True
         
@@ -56,10 +64,23 @@ class TagTranslator:
             if self.dict_path.exists():
                 with open(self.dict_path, 'r', encoding='utf-8') as f:
                     data = json.load(f)
-                    self.dictionary = data.get('tags', {})
-                    # 全部轉小寫以便比對
-                    self.dictionary = {k.lower(): v for k, v in self.dictionary.items()}
-                    logger.info(f"✅ 載入 tag 字典: {len(self.dictionary)} 個翻譯")
+                    raw_tags = data.get('tags', {})
+                    
+                    # 轉換舊格式 (string) 到新格式 (dict)
+                    for k, v in raw_tags.items():
+                        k_lower = k.lower()
+                        if isinstance(v, str):
+                            # 舊格式: {"tag": "翻譯"}
+                            self.dictionary[k_lower] = {
+                                "zh": v,
+                                "nhentai_count": 0,
+                                "local_count": 0
+                            }
+                        elif isinstance(v, dict):
+                            # 新格式: {"tag": {"zh": "翻譯", ...}}
+                            self.dictionary[k_lower] = v
+                    
+                    logger.info(f"✅ 載入 tag 字典: {len(self.dictionary)} 個標籤")
             else:
                 logger.warning(f"⚠️ 找不到 tag 字典: {self.dict_path}")
                 self.dictionary = {}
@@ -68,182 +89,211 @@ class TagTranslator:
             self.dictionary = {}
     
     def reload(self) -> int:
-        """重新載入字典，回傳載入的翻譯數量"""
+        """重新載入字典"""
         self.dictionary = {}
         self.untranslated = set()
         self._load_dictionary()
         return len(self.dictionary)
     
     def translate(self, tag: str, track_missing: bool = True) -> str:
-        """
-        翻譯單一 tag
-        
-        Args:
-            tag: 英文 tag
-            track_missing: 是否追蹤未翻譯的 tag
-            
-        Returns:
-            繁中翻譯，若無則回傳原 tag
-        """
+        """翻譯單一 tag"""
         if not tag:
             return tag
             
         tag_lower = tag.lower().strip()
-        translated = self.dictionary.get(tag_lower)
+        tag_data = self.dictionary.get(tag_lower)
         
-        if translated:
-            return translated
+        if tag_data:
+            zh = tag_data.get('zh', '')
+            if zh:
+                return zh
+            else:
+                if track_missing:
+                    self.untranslated.add(tag_lower)
+                return tag
         else:
             if track_missing and tag_lower:
                 self.untranslated.add(tag_lower)
-            return tag  # 回傳原 tag
+            return tag
     
     def translate_many(self, tags: List[str], track_missing: bool = True) -> List[str]:
-        """
-        批量翻譯 tags
-        
-        Args:
-            tags: 英文 tag 列表
-            track_missing: 是否追蹤未翻譯的 tag
-            
-        Returns:
-            翻譯後的 tag 列表
-        """
+        """批量翻譯 tags"""
         return [self.translate(tag, track_missing) for tag in tags]
     
-    def translate_with_original(self, tags: List[str]) -> List[Tuple[str, str]]:
-        """
-        批量翻譯並保留原文
-        
-        Returns:
-            [(原文, 翻譯), ...] 的列表
-        """
-        return [(tag, self.translate(tag)) for tag in tags]
-    
     def get_untranslated(self) -> List[str]:
-        """取得尚未翻譯的 tag 清單 (已排序)"""
-        return sorted(self.untranslated)
+        """取得未翻譯清單 (zh 為空的)"""
+        untranslated = []
+        for tag, data in self.dictionary.items():
+            if not data.get('zh'):
+                untranslated.append(tag)
+        return sorted(set(untranslated) | self.untranslated)
     
     def get_untranslated_count(self) -> int:
-        """取得未翻譯 tag 數量"""
-        return len(self.untranslated)
+        """取得未翻譯數量"""
+        return len(self.get_untranslated())
     
-    def clear_untranslated(self) -> None:
-        """清空未翻譯追蹤"""
-        self.untranslated = set()
-    
-    def add_translation(self, en_tag: str, zh_tag: str) -> bool:
+    def update_translation(self, en_tag: str, zh_tag: str) -> Tuple[bool, str]:
         """
-        新增翻譯到字典
+        更新翻譯 (只能修改已存在的 tag)
         
-        Args:
-            en_tag: 英文 tag
-            zh_tag: 繁體中文翻譯
-            
         Returns:
-            是否成功儲存
+            (成功與否, 訊息)
         """
         try:
             en_lower = en_tag.lower().strip()
             zh_clean = zh_tag.strip()
             
-            if not en_lower or not zh_clean:
-                return False
+            if not en_lower:
+                return False, "英文標籤不能為空"
             
-            # 更新記憶體字典
-            self.dictionary[en_lower] = zh_clean
+            if en_lower not in self.dictionary:
+                return False, f"標籤 `{en_tag}` 不存在於字典中"
             
-            # 從未翻譯清單移除
+            if not zh_clean:
+                return False, "中文翻譯不能為空"
+            
+            old_zh = self.dictionary[en_lower].get('zh', '')
+            self.dictionary[en_lower]['zh'] = zh_clean
             self.untranslated.discard(en_lower)
             
-            # 儲存到檔案
-            return self._save_dictionary()
+            self._save_dictionary()
+            
+            if old_zh:
+                return True, f"已更新: `{old_zh}` → `{zh_clean}`"
+            else:
+                return True, f"已新增翻譯: `{zh_clean}`"
             
         except Exception as e:
-            logger.error(f"❌ 新增翻譯失敗: {e}")
+            logger.error(f"❌ 更新翻譯失敗: {e}")
+            return False, str(e)
+    
+    def increment_local_count(self, tags: List[str]) -> None:
+        """增加本地使用計數"""
+        for tag in tags:
+            if not isinstance(tag, str):
+                continue
+            tag_lower = tag.lower().strip()
+            if tag_lower in self.dictionary:
+                self.dictionary[tag_lower]['local_count'] = self.dictionary[tag_lower].get('local_count', 0) + 1
+    
+    def register_tag(self, tag: str, nhentai_count: int = 0) -> bool:
+        """
+        註冊新 tag (下載時自動呼叫)
+        """
+        tag_lower = tag.lower().strip()
+        if not tag_lower:
+            return False
+        
+        if tag_lower not in self.dictionary:
+            self.dictionary[tag_lower] = {
+                "zh": "",
+                "nhentai_count": nhentai_count,
+                "local_count": 1
+            }
+            return True
+        else:
+            # 已存在，增加 local_count
+            self.dictionary[tag_lower]['local_count'] = self.dictionary[tag_lower].get('local_count', 0) + 1
+            # 如果 nhentai_count 是 0 且傳入有值，更新
+            if nhentai_count > 0 and self.dictionary[tag_lower].get('nhentai_count', 0) == 0:
+                self.dictionary[tag_lower]['nhentai_count'] = nhentai_count
             return False
     
-    def remove_translation(self, en_tag: str) -> bool:
+    def get_tag_info(self, tag: str) -> Optional[Dict]:
+        """取得 tag 資訊"""
+        tag_lower = tag.lower().strip()
+        return self.dictionary.get(tag_lower)
+    
+    def get_all_tags_sorted(self, sort_by: str = "local") -> List[Tuple[str, Dict]]:
         """
-        移除翻譯
+        取得所有 tag 並排序
         
         Args:
-            en_tag: 要移除的英文 tag
-            
-        Returns:
-            是否成功移除
+            sort_by: "local" (本地數量), "nhentai" (nhentai 數量), "alpha" (字母)
         """
-        try:
-            en_lower = en_tag.lower().strip()
-            
-            if en_lower in self.dictionary:
-                del self.dictionary[en_lower]
-                return self._save_dictionary()
-            return False
-            
-        except Exception as e:
-            logger.error(f"❌ 移除翻譯失敗: {e}")
-            return False
+        items = list(self.dictionary.items())
+        
+        if sort_by == "local":
+            items.sort(key=lambda x: x[1].get('local_count', 0), reverse=True)
+        elif sort_by == "nhentai":
+            items.sort(key=lambda x: x[1].get('nhentai_count', 0), reverse=True)
+        else:
+            items.sort(key=lambda x: x[0])
+        
+        return items
     
     def _save_dictionary(self) -> bool:
         """儲存字典到檔案"""
         try:
-            # 確保目錄存在
             self.dict_path.parent.mkdir(parents=True, exist_ok=True)
             
-            # 讀取現有結構 (保留 _meta)
-            data = {"_meta": {}, "tags": {}}
-            if self.dict_path.exists():
-                with open(self.dict_path, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
+            data = {
+                "_meta": {
+                    "version": "2.0.0",
+                    "updated": datetime.now().strftime('%Y-%m-%d'),
+                    "total_tags": len(self.dictionary)
+                },
+                "tags": dict(sorted(self.dictionary.items()))
+            }
             
-            # 更新 meta
-            data['_meta']['updated'] = datetime.now().strftime('%Y-%m-%d')
-            data['_meta']['total_tags'] = len(self.dictionary)
-            
-            # 更新 tags (按字母排序)
-            data['tags'] = dict(sorted(self.dictionary.items()))
-            
-            # 寫入檔案
             with open(self.dict_path, 'w', encoding='utf-8') as f:
                 json.dump(data, f, ensure_ascii=False, indent=2)
             
-            logger.info(f"✅ 儲存 tag 字典: {len(self.dictionary)} 個翻譯")
+            logger.debug(f"✅ 儲存 tag 字典: {len(self.dictionary)} 個標籤")
             return True
             
         except Exception as e:
             logger.error(f"❌ 儲存 tag 字典失敗: {e}")
             return False
     
-    def search(self, keyword: str) -> List[Tuple[str, str]]:
-        """
-        搜尋字典
-        
-        Args:
-            keyword: 搜尋關鍵字 (英文或中文)
-            
-        Returns:
-            [(英文tag, 中文翻譯), ...] 的列表
-        """
-        keyword_lower = keyword.lower().strip()
-        results = []
-        
-        for en, zh in self.dictionary.items():
-            if keyword_lower in en.lower() or keyword_lower in zh:
-                results.append((en, zh))
-        
-        return sorted(results, key=lambda x: x[0])
+    def save(self) -> bool:
+        """公開的儲存方法"""
+        return self._save_dictionary()
     
     def get_stats(self) -> Dict:
         """取得統計資訊"""
+        translated = sum(1 for d in self.dictionary.values() if d.get('zh'))
         return {
-            'total_translations': len(self.dictionary),
-            'untranslated_count': len(self.untranslated),
+            'total_tags': len(self.dictionary),
+            'translated': translated,
+            'untranslated': len(self.dictionary) - translated,
             'dict_path': str(self.dict_path)
         }
 
 
-# 全域單例 (方便其他模組使用)
+async def fetch_nhentai_tag_count(tag: str) -> int:
+    """
+    從 nhentai 抓取 tag 的作品數量
+    
+    Args:
+        tag: 英文 tag (如 "lolicon")
+    
+    Returns:
+        作品數量，失敗則返回 0
+    """
+    try:
+        url = f"https://nhentai.net/tag/{tag.replace(' ', '-')}/"
+        
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url, timeout=aiohttp.ClientTimeout(total=10)) as response:
+                if response.status != 200:
+                    return 0
+                
+                html = await response.text()
+                
+                # 解析 <span class="count">(12345)</span>
+                match = re.search(r'<span class="count">\(?([\d,]+)\)?</span>', html)
+                if match:
+                    count_str = match.group(1).replace(',', '')
+                    return int(count_str)
+                
+                return 0
+                
+    except Exception as e:
+        logger.debug(f"抓取 nhentai tag 數量失敗 ({tag}): {e}")
+        return 0
+
+
 def get_translator() -> TagTranslator:
     """取得全域 TagTranslator 實例"""
     return TagTranslator()

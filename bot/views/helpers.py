@@ -257,14 +257,12 @@ async def show_item_detail(
     if file_size_str:
         msg_lines.append(f"💾 大小: {file_size_str}")
     
-    # 標籤顯示 (翻譯為繁中，反引號包裹，逗號分隔)
+    # 標籤顯示 (翻譯為繁中，反引號包裹，逗號分隔，顯示全部)
     if other_tags:
         msg_lines.append("")
         translator = get_translator()
-        translated_tags = translator.translate_many(other_tags[:12])
+        translated_tags = translator.translate_many(other_tags)
         tag_display = ', '.join([f'`{tag}`' for tag in translated_tags])
-        if len(other_tags) > 12:
-            tag_display += f", (+{len(other_tags) - 12})"
         msg_lines.append(f"🏷️ 標籤: {tag_display}")
     
     # 評論顯示

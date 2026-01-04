@@ -13,6 +13,7 @@ from bot.commands.download import setup_download_commands
 from bot.commands.info import setup_info_commands
 from bot.commands.library import setup_library_commands
 from bot.commands.admin import setup_admin_commands
+from bot.commands.tag import TagCommands
 
 
 def setup_commands(bot):
@@ -29,4 +30,14 @@ def setup_commands(bot):
     setup_admin_commands(bot)
 
 
-__all__ = ['setup_commands']
+async def setup_cogs(bot):
+    """
+    設定所有 Cog (需要 async)
+    
+    Args:
+        bot: HentaiFetcherBot 實例
+    """
+    await bot.add_cog(TagCommands(bot))
+
+
+__all__ = ['setup_commands', 'setup_cogs']

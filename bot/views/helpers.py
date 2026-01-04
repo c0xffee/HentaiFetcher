@@ -5,13 +5,16 @@ View Helpers - 共用工具函數
 - 統一的詳情顯示模板
 - URL 長度檢查與截斷
 - 封面發送
+- Tag 翻譯整合
 """
 
 import discord
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Tuple
 from pathlib import Path
 from urllib.parse import quote
 import logging
+
+from services.tag_translator import get_translator
 
 logger = logging.getLogger('HentaiFetcher.views')
 
@@ -254,10 +257,12 @@ async def show_item_detail(
     if file_size_str:
         msg_lines.append(f"💾 大小: {file_size_str}")
     
-    # 標籤顯示 (反引號包裹，逗號分隔)
+    # 標籤顯示 (翻譯為繁中，反引號包裹，逗號分隔)
     if other_tags:
         msg_lines.append("")
-        tag_display = ', '.join([f'`{tag}`' for tag in other_tags[:12]])
+        translator = get_translator()
+        translated_tags = translator.translate_many(other_tags[:12])
+        tag_display = ', '.join([f'`{tag}`' for tag in translated_tags])
         if len(other_tags) > 12:
             tag_display += f", (+{len(other_tags) - 12})"
         msg_lines.append(f"🏷️ 標籤: {tag_display}")

@@ -26,6 +26,7 @@ from core.config import (
     DOWNLOAD_DIR,
     PDF_WEB_BASE_URL,
 )
+from services.tag_translator import get_translator
 from services.nhentai_api import (
     download_nhentai_cover,
     download_nhentai_first_page,
@@ -492,10 +493,12 @@ def setup_library_commands(bot):
                         if c['content']:
                             msg_lines.append(f"  {c['content']}")
             
-            # 標籤 (顯示全部)
+            # 標籤 (顯示全部，翻譯為繁中)
             if other_tags:
                 msg_lines.append("")
-                msg_lines.append(f"🏷️ 標籤: {', '.join([f'`{tag}`' for tag in other_tags])}")
+                translator = get_translator()
+                translated_tags = translator.translate_many(other_tags)
+                msg_lines.append(f"🏷️ 標籤: {', '.join([f'`{tag}`' for tag in translated_tags])}")
             
             # 發送資訊
             final_msg = "\n".join(msg_lines)

@@ -49,6 +49,10 @@ class HentaiFetcherBot(commands.Bot):
     
     async def setup_hook(self):
         """Bot 啟動時的設定"""
+        # 載入 Cog (包含 /tag 指令群組)
+        from bot.commands import setup_cogs
+        await setup_cogs(self)
+        
         # 啟動工作執行緒
         self.worker = DownloadWorker(self)
         self.worker.start()

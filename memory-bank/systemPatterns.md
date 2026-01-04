@@ -72,7 +72,11 @@ HentaiFetcher/
 │   ├── __init__.py
 │   ├── nhentai_api.py  # nhentai API 互動
 │   ├── metadata_service.py # Metadata 解析與生成
-│   └── index_service.py    # 索引管理與搜尋
+│   ├── index_service.py    # 索引管理與搜尋
+│   └── tag_translator.py   # Tag 翻譯服務 (v3.5.0+)
+│
+├── data/               # 資料檔案 (v3.5.0+)
+│   └── tag_dictionary.json # 英→繁中 Tag 翻譯字典
 │
 ├── bot/                # Discord Bot 模組
 │   ├── __init__.py
@@ -85,7 +89,8 @@ HentaiFetcher/
 │   │   ├── random_cmd.py     # /random
 │   │   ├── list_cmd.py       # /list
 │   │   ├── admin_cmd.py      # /sync, /reindex, /cleanup
-│   │   └── info_cmd.py       # /help, /ping, /version, /status
+│   │   ├── info_cmd.py       # /help, /ping, /version, /status
+│   │   └── tag.py            # /tag 指令群組 (v3.5.0+)
 │   └── views/          # UI 元件 (View/Button/Select)
 │       ├── base.py
 │       ├── search_view.py

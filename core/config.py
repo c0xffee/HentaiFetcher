@@ -13,7 +13,7 @@ import platform
 from pathlib import Path
 
 # ==================== 版本號 ====================
-VERSION = "3.4.0"
+VERSION = "3.5.0"
 
 # ==================== 環境偵測 ====================
 IS_DOCKER = platform.system() == 'Linux' and os.path.exists('/app')

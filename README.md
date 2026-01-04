@@ -284,6 +284,3 @@ MIT License
 ---
 
 **Made with ❤️ for Synology NAS users**
-#   H e n t a i F e t c h e r 
- 
- 

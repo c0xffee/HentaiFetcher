@@ -6,7 +6,7 @@ Read Detail View - 詳情頁互動視圖
 - nhentai 連結按鈕  
 - 隨機一本按鈕
 - 同作者/同原作搜尋按鈕
-- Tag Select Menu 搜尋同標籤
+- Tag Select Menu 搜尋同標籤 (繁中翻譯)
 - 重新下載按鈕
 """
 
@@ -17,6 +17,7 @@ from urllib.parse import quote
 import logging
 
 from .base import BaseView, TIMEOUT_SECONDS
+from services.tag_translator import get_translator
 
 logger = logging.getLogger('HentaiFetcher.views')
 
@@ -24,18 +25,22 @@ PDF_WEB_BASE_URL = "https://com1c.c0xffee.com"
 
 
 class TagSelectMenu(ui.Select):
-    """標籤選擇下拉選單"""
+    """標籤選擇下拉選單 (顯示繁中翻譯)"""
     
     def __init__(self, tags: List[str]):
         options = []
+        translator = get_translator()
         
         # 最多顯示 25 個標籤
         for tag in tags[:25]:
-            # 清理標籤顯示
-            display_tag = tag[:50] if len(tag) > 50 else tag
+            # 翻譯標籤 (顯示中文，value 保留英文用於搜尋)
+            translated = translator.translate(tag)
+            display_tag = translated[:50] if len(translated) > 50 else translated
+            
             options.append(discord.SelectOption(
                 label=display_tag,
-                value=tag,
+                value=tag,  # 保留英文原文用於搜尋
+                description=tag if translated != tag else None,  # 如果有翻譯則顯示原文
                 emoji="🏷️"
             ))
         

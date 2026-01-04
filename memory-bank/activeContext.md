@@ -1,9 +1,32 @@
 # Active Context
 
 ## Current Focus (目前焦點)
-- ✅ run.py 模組化重構完成 (refactor/modularize-run-py 分支)
+- 🔄 Tag 翻譯系統開發中 (feat/tag-translation 分支)
 
 ## Recent Changes (最近更動)
+- [x] 2026-01-05 新增 Tag 翻譯系統 v3.5.0
+  - **新分支**: `feat/tag-translation`
+  - **新增檔案**:
+    - `data/tag_dictionary.json` - 英→繁中翻譯字典 (150+ 常見 tag)
+    - `services/tag_translator.py` - TagTranslator 服務類別 (單例模式)
+    - `bot/commands/tag.py` - /tag 指令群組
+  - **修改檔案**:
+    - `bot/views/helpers.py` - `show_item_detail()` 整合翻譯
+    - `bot/views/read_view.py` - `TagSelectMenu` 顯示中文翻譯
+    - `bot/commands/library.py` - /read 指令顯示翻譯
+    - `bot/commands/__init__.py` - 新增 setup_cogs()
+    - `bot/bot.py` - setup_hook() 載入 TagCommands Cog
+    - `bot/commands/info.py` - /help 新增 Tag 翻譯區塊
+  - **新指令**:
+    - `/tag add <英文> <中文>` - 新增翻譯
+    - `/tag remove <英文>` - 移除翻譯
+    - `/tag list [頁碼]` - 列出所有翻譯
+    - `/tag search <關鍵字>` - 搜尋翻譯
+    - `/tag missing` - 查看未翻譯標籤
+    - `/tag clear-missing` - 清空未翻譯追蹤
+    - `/tag reload` - 重新載入字典
+    - `/tag stats` - 統計資訊
+  - **版本號**: 3.5.0 (Tag 翻譯版)
 - [x] 2026-01-05 完成 run.py 模組化重構 v3.4.0
   - **新分支**: `refactor/modularize-run-py`
   - **原始狀態**: run.py 3834 行，80 個函數/類別 (God Object)

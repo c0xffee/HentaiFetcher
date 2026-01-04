@@ -110,6 +110,16 @@ def setup_info_commands(bot):
         )
         
         embed.add_field(
+            name="🏷️ 標籤翻譯",
+            value="`/tag add` - 新增翻譯\n"
+                  "`/tag search` - 搜尋翻譯\n"
+                  "`/tag list` - 列出字典\n"
+                  "`/tag missing` - 未翻譯清單\n"
+                  "`/tag stats` - 統計資訊",
+            inline=True
+        )
+        
+        embed.add_field(
             name="ℹ️ 系統",
             value="`/ping` - 測試連線\n"
                   "`/version` - 版本號\n"

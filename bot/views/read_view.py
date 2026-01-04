@@ -71,7 +71,8 @@ class TagSelectMenu(ui.Select):
         
         try:
             # 執行搜尋
-            from run import search_in_downloads, get_all_downloads_items, PDF_WEB_BASE_URL
+            from services.index_service import get_all_downloads_items
+            from core.config import PDF_WEB_BASE_URL
             from eagle_library import EagleLibrary
             
             results = []
@@ -198,7 +199,7 @@ class ArtistSearchButton(ui.Button):
         await interaction.response.defer()
         
         try:
-            from run import search_in_downloads, get_all_downloads_items
+            from services.index_service import get_all_downloads_items
             from eagle_library import EagleLibrary
             
             results = []
@@ -256,7 +257,7 @@ class ParodySearchButton(ui.Button):
         await interaction.response.defer()
         
         try:
-            from run import get_all_downloads_items
+            from services.index_service import get_all_downloads_items
             from eagle_library import EagleLibrary
             
             results = []
@@ -314,7 +315,7 @@ class CharacterSearchButton(ui.Button):
         await interaction.response.defer()
         
         try:
-            from run import get_all_downloads_items
+            from services.index_service import get_all_downloads_items
             from eagle_library import EagleLibrary
             
             results = []
@@ -372,7 +373,7 @@ class RandomButton(ui.Button):
         await interaction.response.defer()
         
         try:
-            from run import get_all_downloads_items
+            from services.index_service import get_all_downloads_items
             from eagle_library import EagleLibrary
             from .helpers import show_item_detail
             import secrets

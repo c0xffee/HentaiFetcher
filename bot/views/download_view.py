@@ -48,7 +48,7 @@ class DownloadProgressView(BaseView):
     @ui.button(label="❌ 取消下載", style=discord.ButtonStyle.danger, custom_id="dl_cancel", row=0)
     async def cancel_button(self, interaction: discord.Interaction, button: ui.Button):
         """取消下載"""
-        from run import request_cancel, cancel_events
+        from core.batch_manager import request_cancel, cancel_events
         
         if self.cancelled:
             await interaction.response.send_message("⚠️ 下載已經被取消", ephemeral=True)

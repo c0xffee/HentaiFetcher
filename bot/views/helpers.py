@@ -132,7 +132,7 @@ async def show_item_detail(
         show_cover: 是否顯示封面
         title_prefix: 標題前綴 (如 "🎲 隨機抽選結果")
     """
-    from run import find_item_by_id, parse_annotation_comments
+    from services.index_service import find_item_by_id, parse_annotation_comments
     from .read_view import ReadDetailView
     
     result = find_item_by_id(gallery_id)

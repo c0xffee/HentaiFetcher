@@ -13,6 +13,7 @@ from typing import Dict, Any, List, Optional
 
 from core.config import logger
 from utils.helpers import generate_eagle_id, format_comments_for_annotation
+from services.tag_translator import get_translator
 
 
 def parse_gallery_dl_info(info_path: Path) -> Optional[Dict[str, Any]]:
@@ -219,6 +220,9 @@ def parse_gallery_dl_info(info_path: Path) -> Optional[Dict[str, Any]]:
         # 去除重複標籤
         result['tags'] = list(dict.fromkeys(result['tags']))
         
+        # ===== 自動註冊新 tag 到翻譯字典 =====
+        _register_new_tags(result['tags'])
+        
         logger.info(f"解析到標題: {result['title']}")
         logger.info(f"  日文標題: {result['title_japanese']}")
         logger.info(f"  Gallery ID: {result['gallery_id']}, 頁數: {result['pages']}")
@@ -407,3 +411,54 @@ def find_info_json(directory: Path) -> Optional[Path]:
         return json_file  # 返回第一個找到的 JSON
     
     return None
+
+
+def _register_new_tags(tags: List[str]) -> int:
+    """
+    自動註冊新 tag 到翻譯字典
+    
+    - 有前綴的 tag (artist:, parody:, group: 等) 會被忽略
+    - 沒有翻譯的 tag 會被加入字典，value 為空字串
+    - 已有翻譯的 tag 不會被覆蓋
+    
+    Args:
+        tags: tag 列表
+        
+    Returns:
+        新增的 tag 數量
+    """
+    try:
+        translator = get_translator()
+        new_count = 0
+        
+        # 需要跳過的前綴
+        skip_prefixes = ['artist:', 'parody:', 'group:', 'language:', 'character:', 'type:', 'category:']
+        
+        for tag in tags:
+            if not isinstance(tag, str):
+                continue
+            
+            # 跳過有前綴的 tag
+            if any(tag.startswith(prefix) for prefix in skip_prefixes):
+                continue
+            
+            tag_lower = tag.lower().strip()
+            if not tag_lower:
+                continue
+            
+            # 檢查是否已在字典中
+            if tag_lower not in translator.dictionary:
+                # 新增到字典 (空字串表示未翻譯)
+                translator.dictionary[tag_lower] = ""
+                new_count += 1
+        
+        # 如果有新 tag，儲存字典
+        if new_count > 0:
+            translator._save_dictionary()
+            logger.debug(f"自動註冊 {new_count} 個新 tag 到翻譯字典")
+        
+        return new_count
+        
+    except Exception as e:
+        logger.warning(f"註冊新 tag 失敗: {e}")
+        return 0

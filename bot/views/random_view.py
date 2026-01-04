@@ -78,7 +78,7 @@ class RandomResultView(BaseView):
         await interaction.response.defer()
         
         try:
-            from run import get_random_gallery_id
+            from services.index_service import get_random_gallery_id
             
             # 使用優化的隨機 ID 獲取函數
             gallery_id = get_random_gallery_id(self.source_filter)

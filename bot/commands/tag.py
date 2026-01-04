@@ -42,10 +42,10 @@ class TagSelectMenu(ui.Select):
             # 顯示名稱: 中文 (英文) 或只有英文
             if zh:
                 label = f"{zh}"[:50]
-                description = f"{tag} | 📚{local} 🌐{nhentai:,}"[:100]
+                description = f"{tag} 📚{local} 🌐{nhentai:,}"[:100]
             else:
                 label = f"{tag}"[:50]
-                description = f"⚠️ 未翻譯 | 📚{local} 🌐{nhentai:,}"[:100]
+                description = f"⚠️ 未翻譯 📚{local} 🌐{nhentai:,}"[:100]
             
             options.append(discord.SelectOption(
                 label=label,
@@ -167,8 +167,8 @@ class TagListView(ui.View):
         if page_tags:
             self.add_item(TagSelectMenu(page_tags, self.page))
     
-    def get_message(self) -> str:
-        """生成純文字訊息"""
+    def get_embed(self) -> discord.Embed:
+        """生成 Embed"""
         translator = get_translator()
         stats = translator.get_stats()
         
@@ -180,14 +180,24 @@ class TagListView(ui.View):
             "random": "🎲 隨機"
         }
         
-        # 標題
-        header = f"🏷️ **標籤翻譯字典** ({self.page + 1}/{self.total_pages})\n"
-        header += f"共 **{stats['total_tags']}** 個 | ✅ {stats['translated']} 已翻譯 | 排序: {sort_names.get(self.sort_by, '📚 本地')}\n\n"
+        embed = discord.Embed(
+            title="🏷️ 標籤翻譯字典",
+            description=f"共 **{stats['total_tags']}** 個標籤 | ✅ 已翻譯 {stats['translated']} | 排序: {sort_names.get(self.sort_by, '📚 本地')}",
+            color=discord.Color.blue()
+        )
+        
+        embed.add_field(
+            name="頁碼",
+            value=f"{self.page + 1} / {self.total_pages}",
+            inline=True
+        )
+        embed.add_field(name="\u200b", value="\u200b", inline=True)
+        embed.add_field(name="\u200b", value="\u200b", inline=True)
         
         # 取得當前頁的 tag
         page_tags = self._get_page_tags()
         
-        # 建立列表 - 格式: 中文    📚 數量    🌐  數量    英文
+        # 建立列表 - 根據排序方式顯示不同數量
         lines = []
         for tag, data in page_tags:
             zh = data.get('zh', '')
@@ -196,37 +206,47 @@ class TagListView(ui.View):
             
             zh_display = zh if zh else "⚠️未翻譯"
             
-            # 格式: 中文    📚 22    🌐  23,750    english
-            lines.append(f"{zh_display}    📚 {local}    🌐  {nhentai:,}    {tag}")
+            # 本地排序時顯示本地數量，其他顯示 nhentai 數量
+            if self.sort_by == "local":
+                display = f"{zh_display} 📚{local} (`{tag}`)"
+            else:
+                display = f"{zh_display} 🌐{nhentai:,} (`{tag}`)"
+            
+            lines.append(display)
         
-        content = header + "\n".join(lines)
-        content += "\n\n*使用下拉選單搜尋同標籤作品*"
+        embed.add_field(
+            name="標籤列表",
+            value="\n".join(lines) if lines else "無資料",
+            inline=False
+        )
         
-        return content
+        embed.set_footer(text="使用下拉選單搜尋同標籤作品")
+        
+        return embed
     
     @ui.button(label="⏮️", style=discord.ButtonStyle.secondary, custom_id="tag_first", row=0)
     async def first_btn(self, interaction: discord.Interaction, button: ui.Button):
         self.page = 0
         self._update_view()
-        await interaction.response.edit_message(content=self.get_message(), embed=None, view=self)
+        await interaction.response.edit_message(embed=self.get_embed(), view=self)
     
     @ui.button(label="◀️", style=discord.ButtonStyle.primary, custom_id="tag_prev", row=0)
     async def prev_btn(self, interaction: discord.Interaction, button: ui.Button):
         self.page = max(0, self.page - 1)
         self._update_view()
-        await interaction.response.edit_message(content=self.get_message(), embed=None, view=self)
+        await interaction.response.edit_message(embed=self.get_embed(), view=self)
     
     @ui.button(label="▶️", style=discord.ButtonStyle.primary, custom_id="tag_next", row=0)
     async def next_btn(self, interaction: discord.Interaction, button: ui.Button):
         self.page = min(self.total_pages - 1, self.page + 1)
         self._update_view()
-        await interaction.response.edit_message(content=self.get_message(), embed=None, view=self)
+        await interaction.response.edit_message(embed=self.get_embed(), view=self)
     
     @ui.button(label="⏭️", style=discord.ButtonStyle.secondary, custom_id="tag_last", row=0)
     async def last_btn(self, interaction: discord.Interaction, button: ui.Button):
         self.page = self.total_pages - 1
         self._update_view()
-        await interaction.response.edit_message(content=self.get_message(), embed=None, view=self)
+        await interaction.response.edit_message(embed=self.get_embed(), view=self)
     
     @ui.button(label="📚 本地", style=discord.ButtonStyle.secondary, custom_id="sort_local", row=1)
     async def sort_local_btn(self, interaction: discord.Interaction, button: ui.Button):
@@ -235,7 +255,7 @@ class TagListView(ui.View):
         self.sort_by = "local"
         self.page = 0
         self._update_view()
-        await interaction.response.edit_message(content=self.get_message(), embed=None, view=self)
+        await interaction.response.edit_message(embed=self.get_embed(), view=self)
     
     @ui.button(label="🌐 nhentai", style=discord.ButtonStyle.secondary, custom_id="sort_nhentai", row=1)
     async def sort_nhentai_btn(self, interaction: discord.Interaction, button: ui.Button):
@@ -244,7 +264,7 @@ class TagListView(ui.View):
         self.sort_by = "nhentai"
         self.page = 0
         self._update_view()
-        await interaction.response.edit_message(content=self.get_message(), embed=None, view=self)
+        await interaction.response.edit_message(embed=self.get_embed(), view=self)
     
     @ui.button(label="🔤 字母", style=discord.ButtonStyle.secondary, custom_id="sort_alpha", row=1)
     async def sort_alpha_btn(self, interaction: discord.Interaction, button: ui.Button):
@@ -253,20 +273,19 @@ class TagListView(ui.View):
         self.sort_by = "alpha"
         self.page = 0
         self._update_view()
-        await interaction.response.edit_message(content=self.get_message(), embed=None, view=self)
+        await interaction.response.edit_message(embed=self.get_embed(), view=self)
     
     @ui.button(label="🎲 隨機", style=discord.ButtonStyle.success, custom_id="sort_random", row=1)
     async def sort_random_btn(self, interaction: discord.Interaction, button: ui.Button):
         import random
         translator = get_translator()
-        # 複製一份避免影響原始排序
         shuffled = list(translator.get_all_tags_sorted("local"))
         random.shuffle(shuffled)
         self.all_tags = shuffled
         self.sort_by = "random"
         self.page = 0
         self._update_view()
-        await interaction.response.edit_message(content=self.get_message(), embed=None, view=self)
+        await interaction.response.edit_message(embed=self.get_embed(), view=self)
 
 
 class TagCommands(commands.Cog):
@@ -299,7 +318,7 @@ class TagCommands(commands.Cog):
             return
         
         view = TagListView(tags, sort_by=sort)
-        await interaction.followup.send(content=view.get_message(), view=view)
+        await interaction.followup.send(embed=view.get_embed(), view=view)
     
     # 子指令群組
     tagcmd = app_commands.Group(name="tagcmd", description="標籤管理指令")

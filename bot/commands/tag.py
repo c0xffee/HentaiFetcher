@@ -197,20 +197,17 @@ class TagListView(ui.View):
         # 取得當前頁的 tag
         page_tags = self._get_page_tags()
         
-        # 建立列表 - 根據排序方式顯示不同數量
+        # 建立列表 - 格式: **中文** (🌐nhentai / 📚local) `english`
         lines = []
         for tag, data in page_tags:
             zh = data.get('zh', '')
             local = data.get('local_count', 0)
             nhentai = data.get('nhentai_count', 0)
             
-            zh_display = zh if zh else "⚠️未翻譯"
+            zh_display = f"**{zh}**" if zh else "⚠️ _未翻譯_"
             
-            # 本地排序時顯示本地數量，其他顯示 nhentai 數量
-            if self.sort_by == "local":
-                display = f"{zh_display} 📚{local} (`{tag}`)"
-            else:
-                display = f"{zh_display} 🌐{nhentai:,} (`{tag}`)"
+            # 格式: **中文** (🌐17,777 / 📚135) `tag`
+            display = f"{zh_display} (🌐{nhentai:,} / 📚{local}) `{tag}`"
             
             lines.append(display)
         

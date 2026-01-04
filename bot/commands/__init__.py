@@ -15,7 +15,7 @@ from bot.commands.library import setup_library_commands
 from bot.commands.admin import setup_admin_commands
 
 
-async def setup_commands(bot):
+def setup_commands(bot):
     """
     設定所有斜線指令到 Bot
     

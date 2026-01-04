@@ -263,31 +263,41 @@ class TagTranslator:
 
 async def fetch_nhentai_tag_count(tag: str) -> int:
     """
-    從 nhentai 抓取 tag 的作品數量
+    從 nhentai API 抓取 tag 的作品數量
+    
+    使用搜尋 API: /api/galleries/search?query=tag:{tag}
+    返回 num_pages * per_page 作為估計總數
     
     Args:
-        tag: 英文 tag (如 "lolicon")
+        tag: 英文 tag (如 "lolicon", "big breasts")
     
     Returns:
         作品數量，失敗則返回 0
     """
     try:
-        url = f"https://nhentai.net/tag/{tag.replace(' ', '-')}/"
+        # 構建搜尋查詢
+        tag_query = tag.lower().strip().replace(' ', '-')
+        url = f"https://nhentai.net/api/galleries/search?query=tag:{tag_query}&page=1"
+        
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        }
         
         async with aiohttp.ClientSession() as session:
-            async with session.get(url, timeout=aiohttp.ClientTimeout(total=10)) as response:
+            async with session.get(url, headers=headers, timeout=aiohttp.ClientTimeout(total=15)) as response:
                 if response.status != 200:
+                    logger.debug(f"nhentai tag API failed: {tag} -> HTTP {response.status}")
                     return 0
                 
-                html = await response.text()
+                data = await response.json()
                 
-                # 解析 <span class="count">(12345)</span>
-                match = re.search(r'<span class="count">\(?([\d,]+)\)?</span>', html)
-                if match:
-                    count_str = match.group(1).replace(',', '')
-                    return int(count_str)
+                # num_pages * per_page = 總數 (近似值)
+                num_pages = data.get('num_pages', 0)
+                per_page = data.get('per_page', 25)
                 
-                return 0
+                # 計算總數 (可能略高於實際，因為最後一頁可能不滿)
+                total = num_pages * per_page
+                return total
                 
     except Exception as e:
         logger.debug(f"抓取 nhentai tag 數量失敗 ({tag}): {e}")

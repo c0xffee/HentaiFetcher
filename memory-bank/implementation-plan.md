@@ -102,12 +102,39 @@
 
 ---
 
-## 🔄 Phase 5: Refactoring (重構週期) - 待規劃
-> 程式碼品質改善
+## 🔄 Phase 5: Modular Refactoring (模組化重構) ✅ 完成
+> run.py 3834 行拆分為模組化架構
 
-- [ ] Step 5.1: 模組化拆分 (run.py 目前約 3800 行)
-- [ ] Step 5.2: 新增單元測試
-- [ ] Step 5.3: 錯誤處理優化
+### Step 5.1: 核心模組 (core/) ✅
+- [x] `core/__init__.py` - 模組導出
+- [x] `core/config.py` - VERSION, 路徑, 常數, Logger
+- [x] `core/batch_manager.py` - 佇列管理, 批次追蹤
+- [x] `core/download_processor.py` - DownloadProcessor 類別
+- [x] `core/download_worker.py` - DownloadWorker 類別
+
+### Step 5.2: 工具模組 (utils/) ✅
+- [x] `utils/__init__.py` - 模組導出
+- [x] `utils/helpers.py` - sanitize_filename, progress_bar 等
+- [x] `utils/url_parser.py` - parse_input_to_urls
+
+### Step 5.3: 服務模組 (services/) ✅
+- [x] `services/__init__.py` - 模組導出
+- [x] `services/nhentai_api.py` - nhentai API 函數
+- [x] `services/metadata_service.py` - metadata 解析與生成
+- [x] `services/index_service.py` - 索引與搜尋服務
+
+### Step 5.4: Bot 模組重構 ✅
+- [x] `bot/bot.py` - HentaiFetcherBot 類別
+- [x] `bot/commands/__init__.py` - 指令設定入口
+- [x] `bot/commands/download.py` - /dl, /queue
+- [x] `bot/commands/info.py` - /ping, /version, /status, /help
+- [x] `bot/commands/library.py` - /list, /random, /search, /read, /fixcover, /cleanup, /eagle, /reindex
+- [x] `bot/commands/admin.py` - /sync
+
+### Step 5.5: 簡化 run.py ✅
+- [x] run.py.bak - 原始檔案備份
+- [x] run_new.py - 簡化版 (~80 行)
+- [ ] 測試驗證後替換 run.py
 
 ---
 
@@ -120,6 +147,19 @@
 ---
 
 ## 📝 Changelog (變更日誌)
+
+### 2026-01-05 (v3.4.0) 🔄 Modular Refactoring
+- **refactor: run.py 模組化拆分**
+  - 原始狀態：3834 行, 80 個函數/類別 (God Object 模式)
+  - 重構後：~80 行，純啟動器
+- **新增模組結構**:
+  - `core/` - 核心模組 (config, batch_manager, download_processor, download_worker)
+  - `utils/` - 工具函式 (helpers, url_parser)
+  - `services/` - 服務層 (nhentai_api, metadata_service, index_service)
+  - `bot/commands/` - 斜線指令模組 (download, info, library, admin)
+  - `bot/bot.py` - HentaiFetcherBot 類別
+- **分支**: `refactor/modularize-run-py`
+- **備份**: run.py.bak
 
 ### 2026-01-02 (v3.3.0) 🎮 UI Components
 - **feat: Discord UI 互動元件整合**

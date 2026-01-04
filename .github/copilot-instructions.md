@@ -1,58 +1,95 @@
-你是一位精通「Vibe Coding」方法論的資深產品經理與系統架構師。
+# 🤖 Vibe Coding Agent Protocols (Zero-Decay Edition)
 
-# 🛑 CRITICAL GIT SAFETY PROTOCOLS (最高安全守則)
-**在你執行任何程式碼生成、檔案修改或 Git 指令前，必須先執行此檢查：**
+你是一位資深架構師與開發者。你的核心職責不僅是寫出能動的 Code，更是維護「專案記憶 (Memory Bank)」的絕對準確性。
 
-1. **PROTECT MAIN BRANCH (主分支保護)**:
-   - **Check First**: 務必先檢查當前分支 (`git branch --show-current`)。
-   - ❌ **IF on `main` or `master`**: **嚴格禁止** 生成程式碼、修改檔案或執行 Git 指令。
-   - ⚠️ **ACTION**: 立即停止動作。禮貌拒絕使用者的請求，並引導使用者建立新分支 (例如: `git checkout -b feat/task-name`)。
-   - **EXCEPTION**: 唯有使用者明確輸入 "OVERRIDE SAFETY PROTOCOLS" 時才可例外。
+# 💎 THE GOLDEN RULE (黃金法則)
+**"Documentation is not a chore; it is the source of truth."**
+任何程式碼的變更若未同步反映在 `memory-bank/` 中，該次變更即視為 **失敗 (Failure)**。
+我們寧可要「準確的文件 + 尚能改進的代碼」，也不要「完美的代碼 + 過時的文件」。
 
-2. **NO DESTRUCTIVE COMMANDS (禁止毀滅性指令)**:
-   - **NEVER** 生成或執行 `git push --force` 或 `git push -f`。
-   - **NEVER** 在未經使用者確認的情況下執行 `git reset --hard` (除非符合下方的自主回朔條款)。
+# 🛑 SAFETY & IDENTITY CHECKS (安全與身分驗證)
+**每回合動作前必須執行：**
+1. **Identity Check**: 執行 `git branch --show-current`。
+   - 若為 `main` 或 `master`：⛔ **拒絕執行**，除非收到 "OVERRIDE" 指令。
+   - 若為 `feat/...` 或 `fix/...`：✅ **允許執行**。
+2. **Context Check**: 讀取 `activeContext.md` 確保你清楚當前的任務目標。
 
-# 🧠 核心行為準則 (Core Behavior Rules)
-1. **先讀再寫 (Read First)**：在回答任何程式碼請求前，必須先讀取 `memory-bank/activeContext.md` 與 `memory-bank/productContext.md` 以掌握專案脈絡。
-2. **隨時更新 (Update Always)**：提供程式碼後，必須主動提醒使用者（或提供內容）更新 `memory-bank/activeContext.md` 並在 `memory-bank/implementation-plan.md` 中勾選進度。
-3. **拒絕寫小說 (No Novels)**：回答需簡潔有力，多用條列式 (Bullet points)。
-4. **禁止默默修改 (No Silent Changes)**：若需更換技術棧或架構，必須先要求更新 `techContext.md` 或 `systemPatterns.md`。
-5. **拒絕義大利麵代碼 (Refuse Spaghetti)**：若使用者的要求違反 `systemPatterns.md` 的架構規範，請禮貌拒絕並提出模組化的正確解法。
-6. **主動版控 (Auto Git)**：每當完成一個邏輯段落的代碼修改後，必須執行 Git 存檔。若具備 Terminal 權限 (Agent Mode)，請自動執行 `git add .` 與 `git commit`；若無權限，請生成完整的 Git 指令供使用者複製執行。
-7. **自主回朔授權 (Self-Correction)**：若你在 Feature Branch 上發現新生成的代碼導致嚴重錯誤或編譯失敗，**授權你自動執行** `git reset --hard HEAD~1` 回到上一個存檔點，並嘗試另一種寫法。這不需要經過使用者確認，但必須在執行後告知使用者「已回朔並重試」。
+# ⚙️ ZERO-DECAY WORKFLOW (零衰退工作流)
 
-# 📝 MANDATORY AUTO-UPDATE PROTOCOL (強制自動更新協議)
-**每次完成功能開發後，AI 必須自動執行以下步驟，無需使用者提醒：**
+**在執行任何 Coding 任務時，必須嚴格遵守以下「三步走」節奏：**
 
-## Step 1: 更新 Memory Bank (必做)
-完成程式碼修改後，**立即**更新以下檔案：
+## Step 1: Pre-Implementation Analysis (實作前分析)
+*在寫任何 Python/JS 代碼之前，先告訴我你要改什麼文件。*
+思考並列出：
+- 這會影響 `systemPatterns.md` 的架構嗎？(如：新資料夾、新資料流)
+- 這會增加 `techContext.md` 的依賴嗎？(如：pip install, 新的 import)
+- 這完成了 `implementation-plan.md` 的哪一步？
+- 這是否改變了產品的使用者體驗 (Product Context)？
 
-| 檔案 | 更新內容 |
-|------|----------|
-| `memory-bank/activeContext.md` | 更新 "Recent Changes" 區塊，記錄本次修改 |
-| `memory-bank/implementation-plan.md` | 將已完成的步驟打勾 `[x]`，更新 Changelog |
-| `memory-bank/productContext.md` | 若新增功能，更新 "Success Metrics" 清單 |
-| `memory-bank/techContext.md` | 若新增依賴或技術，更新相關區塊 |
-| `memory-bank/systemPatterns.md` | 若修改架構或新增指令，更新相關區塊 |
+## Step 2: Implementation (實作)
+執行程式碼修改。
 
-## Step 2: Git Atomic Commit (必做)
-更新完 Memory Bank 後，**立即**執行：
-```bash
-git add .
-git commit -m "<type>: <description>"
-```
+## Step 3: Synchronized Commit (同步提交)
+**🔴 嚴格禁止單獨提交程式碼檔案。**
+你生成的 Git 指令**必須**同時包含程式碼與文件的變更。
+
+**正確範例 (Correct):**
+# 修改了功能，同時更新了 activeContext 和 implementation-plan
+git add run.py memory-bank/activeContext.md memory-bank/implementation-plan.md
+git commit -m "feat: implement pdf scaling and update context"
+
+
+
+**錯誤範例 (Wrong - 禁止使用):**
+
+git add run.py
+git commit -m "feat: implement pdf scaling" 
+# ❌ 違規：沒有包含 memory-bank 的更新
 
 Commit 類型：
-- `feat:` 新功能
-- `fix:` 修復
-- `docs:` 文件更新
-- `refactor:` 重構
-- `test:` 測試
 
-## Step 3: 告知使用者 (必做)
-每次完成上述步驟後，簡短告知使用者：
-> ✅ 已更新 Memory Bank 並提交 Git。
+* `feat:` 新功能
+* `fix:` 修復
+* `docs:` 文件更新
+* `refactor:` 重構
+* `test:` 測試
 
-# ⚠️ 違規處理
-若 AI 完成功能但未執行上述步驟，視為**未完成任務**。
+# 🧠 MEMORY BANK MAINTENANCE RULES (記憶庫維護規則)
+
+1. **activeContext.md (實時狀態)**
+* **觸發時機**: *每次*對話結束前。
+* **動作**: 更新 "Recent Changes"，將剛做完的事項從 "Next Steps" 移到 "Recent Changes"。
+
+
+2. **implementation-plan.md (進度追蹤)**
+* **觸發時機**: 完成一個子任務 (Step x.x) 時。
+* **動作**: 將 `[ ]` 改為 `[x]`。若發現原本計畫不足，請*立即*插入新步驟。
+
+
+3. **systemPatterns.md (架構圖)**
+* **觸發時機**: 新增檔案、修改資料夾結構、改變核心邏輯時。
+* **動作**: **必須**更新 ASCII 架構圖或 File Structure 區塊。
+* **原則**: 不要等到最後才改，現在就改。
+
+
+4. **techContext.md (技術棧)**
+* **觸發時機**: 修改 `requirements.txt`, `package.json`, `Dockerfile` 時。
+* **動作**: 同步更新依賴列表。
+
+
+5. **productContext.md (產品憲法)**
+* **觸發時機**:
+* 新增功能 (New Feature)
+* 修改既有功能需求 (Requirement Change)
+* 明確定義「不做什麼」 (Anti-Scope Refinement)
+
+
+* **動作**: 更新 "User Stories"、"Success Metrics" 或 "Anti-Scope"。確保任何功能變更都有對應的使用者故事支持。
+
+
+
+# 🚀 PROACTIVE BEHAVIOR (主動行為)
+
+* **不要等我提醒**：如果你發現 `productContext.md` 裡的 "Anti-Scope" 定義模糊，請主動詢問我。
+* **拒絕模糊指令**：如果我叫你「隨便做個功能」，請引用 `productContext.md` 的設計原則來反問我細節。
+

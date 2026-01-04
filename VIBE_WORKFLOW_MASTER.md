@@ -31,64 +31,100 @@
 **📄 檔案內容模板 (請直接複製貼上)：**
 
 ```markdown
-你是一位精通「Vibe Coding」方法論的資深產品經理與系統架構師。
+# 🤖 Vibe Coding Agent Protocols (Zero-Decay Edition)
 
-# 🛑 CRITICAL GIT SAFETY PROTOCOLS (最高安全守則)
-**在你執行任何程式碼生成、檔案修改或 Git 指令前，必須先執行此檢查：**
+你是一位資深架構師與開發者。你的核心職責不僅是寫出能動的 Code，更是維護「專案記憶 (Memory Bank)」的絕對準確性。
 
-1. **PROTECT MAIN BRANCH (主分支保護)**:
-   - **Check First**: 務必先檢查當前分支 (`git branch --show-current`)。
-   - ❌ **IF on `main` or `master`**: **嚴格禁止** 生成程式碼、修改檔案或執行 Git 指令。
-   - ⚠️ **ACTION**: 立即停止動作。禮貌拒絕使用者的請求，並引導使用者建立新分支 (例如: `git checkout -b feat/task-name`)。
-   - **EXCEPTION**: 唯有使用者明確輸入 "OVERRIDE SAFETY PROTOCOLS" 時才可例外。
+# 💎 THE GOLDEN RULE (黃金法則)
+**"Documentation is not a chore; it is the source of truth."**
+任何程式碼的變更若未同步反映在 `memory-bank/` 中，該次變更即視為 **失敗 (Failure)**。
+我們寧可要「準確的文件 + 尚能改進的代碼」，也不要「完美的代碼 + 過時的文件」。
 
-2. **NO DESTRUCTIVE COMMANDS (禁止毀滅性指令)**:
-   - **NEVER** 生成或執行 `git push --force` 或 `git push -f`。
-   - **NEVER** 在未經使用者確認的情況下執行 `git reset --hard` (除非符合下方的自主回朔條款)。
+# 🛑 SAFETY & IDENTITY CHECKS (安全與身分驗證)
+**每回合動作前必須執行：**
+1. **Identity Check**: 執行 `git branch --show-current`。
+   - 若為 `main` 或 `master`：⛔ **拒絕執行**，除非收到 "OVERRIDE" 指令。
+   - 若為 `feat/...` 或 `fix/...`：✅ **允許執行**。
+2. **Context Check**: 讀取 `activeContext.md` 確保你清楚當前的任務目標。
 
-# 🧠 核心行為準則 (Core Behavior Rules)
-1. **先讀再寫 (Read First)**：在回答任何程式碼請求前，必須先讀取 `memory-bank/activeContext.md` 與 `memory-bank/productContext.md` 以掌握專案脈絡。
-2. **隨時更新 (Update Always)**：提供程式碼後，必須主動提醒使用者（或提供內容）更新 `memory-bank/activeContext.md` 並在 `memory-bank/implementation-plan.md` 中勾選進度。
-3. **拒絕寫小說 (No Novels)**：回答需簡潔有力，多用條列式 (Bullet points)。
-4. **禁止默默修改 (No Silent Changes)**：若需更換技術棧或架構，必須先要求更新 `techContext.md` 或 `systemPatterns.md`。
-5. **拒絕義大利麵代碼 (Refuse Spaghetti)**：若使用者的要求違反 `systemPatterns.md` 的架構規範，請禮貌拒絕並提出模組化的正確解法。
-6. **主動版控 (Auto Git)**：每當完成一個邏輯段落的代碼修改後，必須執行 Git 存檔。若具備 Terminal 權限 (Agent Mode)，請自動執行 `git add .` 與 `git commit`；若無權限，請生成完整的 Git 指令供使用者複製執行。
-7. **自主回朔授權 (Self-Correction)**：若你在 Feature Branch 上發現新生成的代碼導致嚴重錯誤或編譯失敗，**授權你自動執行** `git reset --hard HEAD~1` 回到上一個存檔點，並嘗試另一種寫法。這不需要經過使用者確認，但必須在執行後告知使用者「已回朔並重試」。
+# ⚙️ ZERO-DECAY WORKFLOW (零衰退工作流)
 
-# 📝 MANDATORY AUTO-UPDATE PROTOCOL (強制自動更新協議)
-**每次完成功能開發後，AI 必須自動執行以下步驟，無需使用者提醒：**
+**在執行任何 Coding 任務時，必須嚴格遵守以下「三步走」節奏：**
 
-## Step 1: 更新 Memory Bank (必做)
-完成程式碼修改後，**立即**更新以下檔案：
+## Step 1: Pre-Implementation Analysis (實作前分析)
+*在寫任何 Python/JS 代碼之前，先告訴我你要改什麼文件。*
+思考並列出：
+- 這會影響 `systemPatterns.md` 的架構嗎？(如：新資料夾、新資料流)
+- 這會增加 `techContext.md` 的依賴嗎？(如：pip install, 新的 import)
+- 這完成了 `implementation-plan.md` 的哪一步？
+- 這是否改變了產品的使用者體驗 (Product Context)？
 
-| 檔案 | 更新內容 |
-|------|----------|
-| `memory-bank/activeContext.md` | 更新 "Recent Changes" 區塊，記錄本次修改 |
-| `memory-bank/implementation-plan.md` | 將已完成的步驟打勾 `[x]`，更新 Changelog |
-| `memory-bank/productContext.md` | 若新增功能，更新 "Success Metrics" 清單 |
-| `memory-bank/techContext.md` | 若新增依賴或技術，更新相關區塊 |
-| `memory-bank/systemPatterns.md` | 若修改架構或新增指令，更新相關區塊 |
+## Step 2: Implementation (實作)
+執行程式碼修改。
 
-## Step 2: Git Atomic Commit (必做)
-更新完 Memory Bank 後，**立即**執行：
-```bash
-git add .
-git commit -m "<type>: <description>"
-```
+## Step 3: Synchronized Commit (同步提交)
+**🔴 嚴格禁止單獨提交程式碼檔案。**
+你生成的 Git 指令**必須**同時包含程式碼與文件的變更。
+
+**正確範例 (Correct):**
+# 修改了功能，同時更新了 activeContext 和 implementation-plan
+git add run.py memory-bank/activeContext.md memory-bank/implementation-plan.md
+git commit -m "feat: implement pdf scaling and update context"
+
+
+
+**錯誤範例 (Wrong - 禁止使用):**
+
+git add run.py
+git commit -m "feat: implement pdf scaling" 
+# ❌ 違規：沒有包含 memory-bank 的更新
 
 Commit 類型：
-- `feat:` 新功能
-- `fix:` 修復
-- `docs:` 文件更新
-- `refactor:` 重構
-- `test:` 測試
 
-## Step 3: 告知使用者 (必做)
-每次完成上述步驟後，簡短告知使用者：
-> ✅ 已更新 Memory Bank 並提交 Git。
+* `feat:` 新功能
+* `fix:` 修復
+* `docs:` 文件更新
+* `refactor:` 重構
+* `test:` 測試
 
-# ⚠️ 違規處理
-若 AI 完成功能但未執行上述步驟，視為**未完成任務**。
+# 🧠 MEMORY BANK MAINTENANCE RULES (記憶庫維護規則)
+
+1. **activeContext.md (實時狀態)**
+* **觸發時機**: *每次*對話結束前。
+* **動作**: 更新 "Recent Changes"，將剛做完的事項從 "Next Steps" 移到 "Recent Changes"。
+
+
+2. **implementation-plan.md (進度追蹤)**
+* **觸發時機**: 完成一個子任務 (Step x.x) 時。
+* **動作**: 將 `[ ]` 改為 `[x]`。若發現原本計畫不足，請*立即*插入新步驟。
+
+
+3. **systemPatterns.md (架構圖)**
+* **觸發時機**: 新增檔案、修改資料夾結構、改變核心邏輯時。
+* **動作**: **必須**更新 ASCII 架構圖或 File Structure 區塊。
+* **原則**: 不要等到最後才改，現在就改。
+
+
+4. **techContext.md (技術棧)**
+* **觸發時機**: 修改 `requirements.txt`, `package.json`, `Dockerfile` 時。
+* **動作**: 同步更新依賴列表。
+
+
+5. **productContext.md (產品憲法)**
+* **觸發時機**:
+* 新增功能 (New Feature)
+* 修改既有功能需求 (Requirement Change)
+* 明確定義「不做什麼」 (Anti-Scope Refinement)
+
+
+* **動作**: 更新 "User Stories"、"Success Metrics" 或 "Anti-Scope"。確保任何功能變更都有對應的使用者故事支持。
+
+
+
+# 🚀 PROACTIVE BEHAVIOR (主動行為)
+
+* **不要等我提醒**：如果你發現 `productContext.md` 裡的 "Anti-Scope" 定義模糊，請主動詢問我。
+* **拒絕模糊指令**：如果我叫你「隨便做個功能」，請引用 `productContext.md` 的設計原則來反問我細節。
 
 ```
 
@@ -184,24 +220,32 @@ Commit 類型：
 
 ### 2. `memory-bank/productContext.md` (產品憲法)
 
-**定義**：從訪談紀錄中提煉出的「定案規格」。
+**定義**：專案的最高指導原則。這不是功能清單，而是「為什麼要做」以及「如何思考」的準則。
 
 ```markdown
 # Product Context
 
 ## Core Problem (核心問題)
-- [清楚描述要解決的痛點]
+- [一句話描述痛點]：例如「使用者無法在手機上管理 NAS 的漫畫收藏」。
+- [一句話描述解法]：例如「透過 Discord Bot 作為遙控器，自動化下載與歸檔」。
 
-## User Persona (目標用戶)
-- **[用戶類型]**: [情境描述]
+## User Stories (使用者故事)
+*描述用戶在什麼情境下，想要做什麼，以達到什麼目的。*
+- 作為 **[收藏家]**，我想要 **[貼上網址就自動下載]**，以便 **[省去手動操作 NAS 的時間]**。
+- 作為 **[Eagle 用戶]**，我想要 **[檔案自動擁有標籤]**，以便 **[未來能快速搜尋]**。
 
 ## Success Metrics (成功定義)
-- MVP 關鍵功能：[列表]
+- **系統面**：轉換 PDF 失敗率低於 1%。
+- **體驗面**：指令回應時間 < 2秒。
 
-## 🛑 Anti-Scope (不做什麼)
-- [ ] [明確列出第一版不做的功能]
-- [ ] [例如：不處理金流]
+## Design Principles (設計原則)
+- **Zero Config**: 用戶不需要進入 NAS 後台設定。
+- **Auto-Healing**: 下載失敗必須自動重試或通知，不能默默失敗。
 
+## 🛑 Anti-Scope (邊界與限制)
+*明確定義「不做」什麼，防止範圍蔓延 (Scope Creep)。*
+- [ ] 第一版不支援付費網站 (Fantia/Fanbox)。
+- [ ] 不實作 Web UI，全靠 Discord 互動。
 
 ```
 
@@ -239,10 +283,8 @@ Commit 類型：
    - 其他相關文件（若有變更）
 3. **No-Silent-Changes**: 禁止擅自更改技術棧，必須先更新文件。
 4. **Git-Atomic-Commit**: 每次完成一個原子修改 (Atomic Change) 後，**必須自動**執行：
-   ```bash
    git add .
    git commit -m "<type>: <description>"
-   ```
 5. **Completion-Notification**: 完成上述步驟後，告知使用者：「✅ 已更新 Memory Bank 並提交 Git。」
 
 ## Architecture (系統架構)
@@ -322,30 +364,46 @@ Commit 類型：
 
 *每當開啟新對話時執行。*
 
-> **Prompt**: `@workspace 讀取 memory-bank。查看 `activeContext`確認目前進度，並根據`implementation-plan` 擬定下一步的詳細實作計畫（先不要寫 code，列出計畫給我看）。`
+> **Prompt**: 
+> ```markdown
+> @workspace 讀取 memory-bank。查看 `activeContext`確認目前進度，並根據`implementation-plan` 擬定下一步的詳細實作計畫（先不要寫 code，列出計畫給我看）。
+> ```
 
-### 🔁 步驟 4.2：執行、存檔與糾錯 (Code, Commit & Correct)
+### 🔁 步驟 4.2：同步開發循環 (Sync-Locked Development)
 
-*AI 每寫一段代碼，就當作一個存檔點 (Save Point)。若出錯，則自動讀檔重來。*
+*此指令強制 AI 將代碼與文件視為一體，確保零衰退。*
 
 > **Prompt**:
 > ```markdown
-> @workspace **[SAFETY CHECK]**
-> 1. 請確認我目前 **不是** 在 `main` 分支。
-> 2. 如果在 `main`，請立刻停止並警告我。
-> 3. 如果在 `feat/...` 分支，請繼續執行 Step X。
+> @workspace **[ZERO-DECAY MODE]**
 >
-> **[ACTION]**
-> 執行 Step X 的程式碼。
-> - **Auto-Commit**: 若程式碼正確，請保持原子性提交 (Atomic Commits)，分次執行 `git add .` 與 `git commit`。
-> - **Auto-Correction**: 若你在開發過程中發現自己寫爛了或編譯失敗，授權你執行 `git reset --hard` 回到上一個存檔點，並嘗試另一種解法 (請告知我你這麼做了)。
+> 1. **Check Identity**: 確認目前分支不是 `main`。
+>
+> 2. **Analysis**: 讀取 `activeContext.md` 與 `implementation-plan.md`，確認我們現在要解哪一個步驟？
+>
+> 3. **Execution Plan**:
+>    請執行任務：[描述任務內容]
+>
+>    **⚠️ 關鍵要求**:
+>    - 你的輸出必須包含**程式碼變更** 以及 **對應的 Memory Bank 文件更新**。
+>    - 尤其是 `activeContext.md` (狀態) 與 `implementation-plan.md` (進度)。
+>    - 如果涉及架構變動，請一併更新 `systemPatterns.md`。
+>
+> 4. **Atomic Commit**:
+>    最後生成的 git commit 指令，**必須同時 `git add` 程式碼檔案與 Memory Bank 檔案**。
+>
+> 5. **Auto-Commit**: 若程式碼正確，請保持原子性提交 (Atomic Commits)，分次執行 `git add .` 與 `git commit`。
+> 6. **Auto-Correction**: 若你在開發過程中發現自己寫爛了或編譯失敗，授權你執行 `git reset --hard` 回到上一個存檔點，並嘗試另一種解法 (請告知我你這麼做了)。
 > ```
 
 ### 🔁 步驟 4.3：驗收與合併 (Verify & Squash)
 
 *功能完成後，進行總驗收與合併。*
 
-> **Prompt**: `Step X 測試通過。請幫我：1. 更新 `activeContext.md`的 Recent Changes。2. 將`implementation-plan.md` 的該步驟打勾 [x]。3. 針對這次文件的更新，執行最後一次 Git Commit (訊息：docs: update context for step X)。`
+> **Prompt**: 
+> ```markdown
+> Step X 測試通過。請幫我：1. 更新 `activeContext.md`的 Recent Changes。2. 將`implementation-plan.md` 的該步驟打勾 [x]。3. 針對這次文件的更新，執行最後一次 Git Commit (訊息：docs: update context for step X)。
+> ```
 > **Action**: 發起 PR 並使用 "Squash and Merge" 合併回 Main，保持主線乾淨。
 
 ### 🔁 步驟 4.4：重置 (Reset)
@@ -360,21 +418,64 @@ Commit 類型：
 
 > **Prompt**: `@workspace 目前的修改方向錯誤/導致了 Bug。請幫我檢查 `git log`，找到上一個正常的 Commit Hash，並執行 `git reset --hard` 回到該狀態。然後我們重新思考 Step X 的實作。`
 
+
+### 🔁 步驟 4.6：Memory Bank 總體檢 (Health Check)
+
+*當你發現 `activeContext` 與程式碼脫節，或 `productContext` 不再準確時，執行此指令。*
+
+> **Prompt**:
+> ```markdown
+> @workspace 執行「Memory Bank 總體檢」。
+> 1. **Codebase Audit**: 掃描 `systemPatterns.md` 與 `techContext.md`，檢查是否與目前的程式碼結構（如 `filelist.txt`）或 `package.json` 有出入？(例如：有沒有新的資料夾？有沒有棄用的套件？)
+> 2. **Status Check**: 檢查 `implementation-plan.md` 的打勾項目，是否真的都完成了？
+> 3. **Consistency Check**: 檢查 `productContext.md` 的目標是否仍符合我們目前的開發方向？
+> 4. 請列出差異報告，並幫我更新 Memory Bank 使其恢復「單一真實來源 (Single Source of Truth)」的狀態。
+> 
+> ```
+> 
+> 
+
 ---
 
-## 🛡️ 第五階段：維護與變更 (Maintenance)
+## 🛡️ 第五階段：變更管理與擴充 (Change Management)
 
-### 1. 檔案過大時 (Archiving)
+*適用情境：專案開發到一半，突然有新點子，或想修改既有邏輯。*
 
-當 `activeContext.md` 超過 100 行：
+### 5.1 微型變更 (Micro Changes)
 
-> **Prompt**: `@workspace activeContext.md 內容太長了。請把舊的 Recent Changes 剪下，移動到新建立的 `memory-bank/changelog.md` 中封存，只保留最新的狀態。`
+*不影響架構的小修改（如：UI 調整、參數修改、Bug Fix）。*
 
-### 2. 需求變更時 (Change Request)
+* **Action**: 直接在 `fix/...` 分支執行，完成後觸發 Auto-Update Protocol 更新 `activeContext.md` 即可。
 
-當你想增加新功能，**不要直接叫它寫 Code**：
+### 5.2 結構性擴充 (Structural Expansion) - **關鍵流程**
 
-> **Prompt**: `@workspace 我想新增 [某功能]。請讀取 `project-brief.md` 回顧我們的初衷，並執行 Red Team Analysis，分析這會如何影響現有的架構？`
+*影響架構的新功能（如：新增 Eagle 插件、更換 PDF 引擎）。*
+
+**這是最容易導致 Memory Bank 脫節的時刻。請嚴格執行以下流程：**
+
+1. **Step 1: 影響力分析 (Impact Analysis)**
+> **Prompt**: 
+> ```markdown
+> @workspace 我想新增功能：[描述功能]。請讀取 `productContext.md`確認是否符合設計原則？並執行 Red Team Analysis分析此功能對`systemPatterns`(架構) 和`techContext` (依賴) 的衝擊。我們需要修改哪些檔案？
+> ```
+
+
+2. **Step 2: 規格更新 (Spec Update)**
+*在寫任何 Code 之前，先叫 AI 改文件。*
+> **Prompt**:
+> ```markdown
+>@workspace 確認執行。請幫我：
+> 1. 更新 `productContext.md` (若有新 User Story)。
+> 2. 在 `implementation-plan.md` 插入新的 Phase 或 Step。
+> 3. 更新 `activeContext.md` 將焦點轉移到這個新任務。`
+> ```
+> 
+
+
+3. **Step 3: 執行開發 (Execute)**
+> 轉回標準開發流程 (Step 4.0)，切出新分支 `feat/new-feature` 開始實作。
+
+
 
 ---
 

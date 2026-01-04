@@ -41,9 +41,11 @@
 ## Eagle Auto-Importer 插件
 - **類型**: Background Service
 - **執行環境**: Eagle Plugin API (基於 Node.js)
-- **監控路徑**: `\\192.168.0.32\docker\HentaiFetcher\downloads`
-- **歸檔路徑**: `\\192.168.0.32\docker\HentaiFetcher\imported`
+- **監控路徑**: `Z:\HentaiFetcher\downloads` (映射磁碟機)
+- **歸檔路徑**: `Z:\HentaiFetcher\imported`
+- **索引檔案**: `Z:\HentaiFetcher\imports-index.json`
 - **掃描間隔**: 30 秒
+- **注意**: Eagle API 不支援 UNC 路徑，必須使用映射磁碟機
 
 ## Development Environment
 - **IDE**: VS Code + GitHub Copilot

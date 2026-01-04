@@ -132,7 +132,7 @@ class TagListView(ui.View):
         tags: List[tuple],  # [(tag, data), ...]
         sort_by: str = "local",
         page: int = 0,
-        per_page: int = 15
+        per_page: int = 10  # 改成 10 以配合兩行顯示
     ):
         super().__init__(timeout=300)
         self.all_tags = tags
@@ -197,25 +197,22 @@ class TagListView(ui.View):
         # 取得當前頁的 tag
         page_tags = self._get_page_tags()
         
-        # 建立列表 - 格式: **中文** (🌐nhentai / 📚local) `english`
-        lines = []
+        # 建立列表 - 參考 search_view 用兩行方式 (name + value)
         for tag, data in page_tags:
             zh = data.get('zh', '')
             local = data.get('local_count', 0)
             nhentai = data.get('nhentai_count', 0)
             
-            zh_display = f"**{zh}**" if zh else "⚠️ _未翻譯_"
+            # name: **中文** `english`
+            if zh:
+                name = f"🏷️ **{zh}** `{tag}`"
+            else:
+                name = f"⚠️ _未翻譯_ `{tag}`"
             
-            # 格式: **中文** (🌐17,777 / 📚135) `tag`
-            display = f"{zh_display} (🌐{nhentai:,} / 📚{local}) `{tag}`"
+            # value: 🌐nhentai / 📚local
+            value = f"🌐 {nhentai:,} / 📚 {local}"
             
-            lines.append(display)
-        
-        embed.add_field(
-            name="標籤列表",
-            value="\n".join(lines) if lines else "無資料",
-            inline=False
-        )
+            embed.add_field(name=name, value=value, inline=False)
         
         embed.set_footer(text="使用下拉選單搜尋同標籤作品")
         

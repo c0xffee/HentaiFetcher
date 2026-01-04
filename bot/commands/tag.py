@@ -182,7 +182,7 @@ class TagListView(ui.View):
         
         embed = discord.Embed(
             title="🏷️ 標籤翻譯字典",
-            description=f"共 **{stats['total_tags']}** 個標籤 | ✅ 已翻譯 {stats['translated']} | 排序: {sort_names.get(self.sort_by, '📚 本地')}",
+            description=f"共 **{stats['total_tags']}** 個標籤  ✅ 已翻譯 {stats['translated']} | 排序: {sort_names.get(self.sort_by, '📖 本地')}",
             color=discord.Color.blue()
         )
         
@@ -205,12 +205,12 @@ class TagListView(ui.View):
             
             # name: **中文** `english`
             if zh:
-                name = f"🏷️ **{zh}** `{tag}`"
+                name = f"#**{zh}**"
             else:
                 name = f"⚠️ _未翻譯_ `{tag}`"
             
-            # value: 🌐nhentai / 📚local
-            value = f"🌐 {nhentai:,} / 📚 {local}"
+            # value: 🌐nhentai / 📖local
+            value = f"`{tag}` 🌐 {nhentai:,} 📖 {local}"
             
             embed.add_field(name=name, value=value, inline=False)
         
@@ -242,7 +242,7 @@ class TagListView(ui.View):
         self._update_view()
         await interaction.response.edit_message(embed=self.get_embed(), view=self)
     
-    @ui.button(label="📚 本地", style=discord.ButtonStyle.secondary, custom_id="sort_local", row=1)
+    @ui.button(label="📖 本地", style=discord.ButtonStyle.secondary, custom_id="sort_local", row=1)
     async def sort_local_btn(self, interaction: discord.Interaction, button: ui.Button):
         translator = get_translator()
         self.all_tags = translator.get_all_tags_sorted("local")
@@ -292,7 +292,7 @@ class TagCommands(commands.Cog):
     @app_commands.command(name="tag", description="顯示標籤翻譯字典 (分頁、排序、搜尋)")
     @app_commands.describe(sort="排序方式")
     @app_commands.choices(sort=[
-        app_commands.Choice(name="📚 本地數量", value="local"),
+        app_commands.Choice(name="📖 本地數量", value="local"),
         app_commands.Choice(name="🌐 nhentai 數量", value="nhentai"),
         app_commands.Choice(name="🔤 字母順序", value="alpha"),
     ])

@@ -406,6 +406,7 @@ class TagCommands(commands.Cog):
         
         success_count = 0
         fail_count = 0
+        failed_tags = []  # 記錄失敗的 tag
         
         # 批量抓取 (每 5 個更新一次進度)
         for i, tag in enumerate(tags_need_nhentai):
@@ -416,12 +417,13 @@ class TagCommands(commands.Cog):
                     success_count += 1
                 else:
                     fail_count += 1
+                    failed_tags.append(tag)
                 
                 # 避免請求過快
                 await asyncio.sleep(0.5)
                 
-                # 每 5 個更新進度
-                if (i + 1) % 5 == 0 or (i + 1) == total:
+                # 每 10 個更新進度
+                if (i + 1) % 10 == 0 or (i + 1) == total:
                     progress = (i + 1) / total * 100
                     await msg.edit(content=(
                         f"🔄 同步中... {progress:.0f}%\n"
@@ -431,6 +433,7 @@ class TagCommands(commands.Cog):
             except Exception as e:
                 logger.error(f"同步 tag '{tag}' 失敗: {e}")
                 fail_count += 1
+                failed_tags.append(f"{tag} (錯誤)")
         
         # 重新計算 local_count
         await msg.edit(content=f"🔄 重新計算本地數量...")
@@ -462,13 +465,23 @@ class TagCommands(commands.Cog):
         # 儲存
         translator.save()
         
-        await msg.edit(content=(
+        # 構建結果訊息
+        result_msg = (
             f"✅ 同步完成!\n"
             f"📊 nhentai 計數: 成功 {success_count} / 失敗 {fail_count}\n"
             f"📚 本地計數: 已重新計算"
-        ))
+        )
         
-        logger.info(f"Tag sync 完成: nhentai={success_count}/{total}, local=重新計算")
+        # 如果有失敗的 tag，顯示清單
+        if failed_tags:
+            failed_list = ", ".join([f"`{t}`" for t in failed_tags[:30]])
+            if len(failed_tags) > 30:
+                failed_list += f" ... 還有 {len(failed_tags) - 30} 個"
+            result_msg += f"\n\n⚠️ **以下 tag 在 nhentai 上找不到:**\n{failed_list}"
+        
+        await msg.edit(content=result_msg)
+        
+        logger.info(f"Tag sync 完成: nhentai={success_count}/{total}, failed={failed_tags[:10]}")
 
 
 async def setup(bot: commands.Bot):

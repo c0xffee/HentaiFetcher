@@ -182,7 +182,8 @@ class TagListView(ui.View):
         sort_names = {
             "local": "📚 本地數量",
             "nhentai": "🌐 nhentai 數量",
-            "alpha": "🔤 字母順序"
+            "alpha": "🔤 字母順序",
+            "random": "🎲 隨機"
         }
         embed.add_field(
             name="排序方式",
@@ -199,7 +200,7 @@ class TagListView(ui.View):
         # 取得當前頁的 tag
         page_tags = self._get_page_tags()
         
-        # 建立列表
+        # 建立列表 - 新格式: 中文    📚本地    🌐nhentai  (英文)
         lines = []
         for tag, data in page_tags:
             zh = data.get('zh', '')
@@ -207,12 +208,11 @@ class TagListView(ui.View):
             nhentai = data.get('nhentai_count', 0)
             
             if zh:
-                display = f"`{tag}` → **{zh}**"
+                # 格式: 中文    📚數量    🌐數量  (英文)
+                display = f"**{zh}**  📚{local}  🌐{nhentai:,}  (`{tag}`)"
             else:
-                display = f"`{tag}` → ⚠️ _未翻譯_"
+                display = f"⚠️ _未翻譯_  📚{local}  🌐{nhentai:,}  (`{tag}`)"
             
-            # 數量顯示
-            display += f" (📚{local}, 🌐{nhentai:,})"
             lines.append(display)
         
         embed.add_field(
@@ -272,6 +272,19 @@ class TagListView(ui.View):
         translator = get_translator()
         self.all_tags = translator.get_all_tags_sorted("alpha")
         self.sort_by = "alpha"
+        self.page = 0
+        self._update_view()
+        await interaction.response.edit_message(embed=self.get_embed(), view=self)
+    
+    @ui.button(label="🎲 隨機", style=discord.ButtonStyle.success, custom_id="sort_random", row=1)
+    async def sort_random_btn(self, interaction: discord.Interaction, button: ui.Button):
+        import random
+        translator = get_translator()
+        # 複製一份避免影響原始排序
+        shuffled = list(translator.get_all_tags_sorted("local"))
+        random.shuffle(shuffled)
+        self.all_tags = shuffled
+        self.sort_by = "random"
         self.page = 0
         self._update_view()
         await interaction.response.edit_message(embed=self.get_embed(), view=self)
